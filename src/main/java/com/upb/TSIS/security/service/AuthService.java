@@ -28,16 +28,16 @@ import java.util.UUID;
 @Slf4j
 public class AuthService {
 
-    private final UsuarioRepository       usuarioRepository;
+    private final UsuarioRepository usuarioRepository;
     private final TokenRefrescoRepository tokenRepository;
-    private final PasswordEncoder         passwordEncoder;
-    private final JwtService              jwtService;
-    private final AuthenticationManager   authManager;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
+    private final AuthenticationManager authManager;
 
     @Value("${jwt.refresh-expiration-ms}")
     private long refreshExpirationMs;
 
-    // ── Registro ─────────────────────────────────────────────
+    // -- Registro -------------------------------------------------
 
     @Transactional
     public AuthResponse registrar(RegisterRequest request) {
@@ -64,11 +64,10 @@ public class AuthService {
         return generarRespuestaCompleta(guardado);
     }
 
-    // ── Login ────────────────────────────────────────────────
+    // -- Login ----------------------------------------------------
 
     @Transactional
     public AuthResponse login(LoginRequest request) {
-        // Spring Security valida credenciales; lanza excepción si falla
         authManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
         );
@@ -76,18 +75,16 @@ public class AuthService {
         Usuario usuario = usuarioRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new RecursoNoEncontradoException("Usuario no encontrado"));
 
-        // Actualizar último acceso
-        usuario.setUltimoAcceso(LocalDateTime.now());
-        usuarioRepository.save(usuario);
-
-        // Revocar tokens anteriores del usuario para sesión única
         tokenRepository.revocarTodosDeUsuario(usuario.getId());
+        usuario.setUltimoAcceso(LocalDateTime.now());
+        usuario.setTokenVersion(usuario.getTokenVersion() + 1);
+        usuarioRepository.save(usuario);
 
         log.info("Login exitoso: {}", usuario.getEmail());
         return generarRespuestaCompleta(usuario);
     }
 
-    // ── Refresh token ────────────────────────────────────────
+    // -- Refresh token -------------------------------------------
 
     @Transactional
     public AuthResponse refresh(RefreshRequest request) {
@@ -98,29 +95,36 @@ public class AuthService {
             throw new ReglaNegocioException("Refresh token revocado.");
         }
         if (tokenEntity.getExpiraEn().isBefore(LocalDateTime.now())) {
-            throw new ReglaNegocioException("Refresh token expirado. Por favor inicia sesión nuevamente.");
+            throw new ReglaNegocioException("Refresh token expirado. Por favor inicia sesion nuevamente.");
         }
 
-        // Rotar refresh token (revoca el viejo, genera uno nuevo)
         tokenEntity.setRevocado(true);
         tokenRepository.save(tokenEntity);
 
-        Usuario usuario = tokenEntity.getUsuario();
+        Usuario usuario = usuarioRepository.findById(tokenEntity.getUsuario().getId())
+                .orElseThrow(() -> new RecursoNoEncontradoException("Usuario no encontrado"));
+
         return generarRespuestaCompleta(usuario);
     }
 
-    // ── Logout ───────────────────────────────────────────────
+    // -- Logout ---------------------------------------------------
 
     @Transactional
     public void logout(Integer usuarioId) {
+        Usuario usuario = usuarioRepository.findById(usuarioId)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Usuario no encontrado: " + usuarioId));
+
         tokenRepository.revocarTodosDeUsuario(usuarioId);
+        usuario.setTokenVersion(usuario.getTokenVersion() + 1);
+        usuarioRepository.save(usuario);
+
         log.info("Logout: tokens revocados para usuarioId={}", usuarioId);
     }
 
-    // ── Helper: genera access + refresh y devuelve AuthResponse ─
+    // -- Helpers --------------------------------------------------
 
     private AuthResponse generarRespuestaCompleta(Usuario usuario) {
-        String accessToken  = jwtService.generarAccessToken(usuario);
+        String accessToken = jwtService.generarAccessToken(usuario);
         String refreshToken = generarYGuardarRefreshToken(usuario);
 
         return new AuthResponse(

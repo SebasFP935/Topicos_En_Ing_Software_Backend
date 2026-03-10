@@ -63,13 +63,15 @@ public class Usuario implements UserDetails {
     @Column(name = "ultimo_acceso")
     private LocalDateTime ultimoAcceso;
 
+    @Column(name = "token_version", nullable = false)
+    @Builder.Default
+    private Integer tokenVersion = 0;
+
     @Column(name = "creado_en", updatable = false)
     private LocalDateTime creadoEn;
 
     @Column(name = "actualizado_en")
     private LocalDateTime actualizadoEn;
-
-    // ── Spring Security UserDetails ──────────────────────────
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
@@ -106,11 +108,9 @@ public class Usuario implements UserDetails {
         return activo;
     }
 
-    // ── Hooks ────────────────────────────────────────────────
-
     @PrePersist
     protected void onCreate() {
-        this.creadoEn     = LocalDateTime.now();
+        this.creadoEn = LocalDateTime.now();
         this.actualizadoEn = LocalDateTime.now();
     }
 

@@ -27,20 +27,21 @@ public class JwtService {
     @Value("${jwt.expiration-ms}")
     private long expirationMs;
 
-    // ── Generación ───────────────────────────────────────────
+    // -- Generacion ------------------------------------------------
 
     public String generarAccessToken(Usuario usuario) {
         Map<String, Object> claims = new HashMap<>();
-        claims.put("rol",      usuario.getRol().name());
-        claims.put("nombre",   usuario.getNombre());
+        claims.put("rol", usuario.getRol().name());
+        claims.put("nombre", usuario.getNombre());
         claims.put("apellido", usuario.getApellido());
-        claims.put("id",       usuario.getId());
+        claims.put("id", usuario.getId());
+        claims.put("tokenVersion", usuario.getTokenVersion());
         return buildToken(claims, usuario.getEmail(), expirationMs);
     }
 
     private String buildToken(Map<String, Object> claims, String subject, long expMs) {
-        Date ahora   = new Date();
-        Date expira  = new Date(ahora.getTime() + expMs);
+        Date ahora = new Date();
+        Date expira = new Date(ahora.getTime() + expMs);
 
         return Jwts.builder()
                 .claims(claims)
@@ -51,7 +52,7 @@ public class JwtService {
                 .compact();
     }
 
-    // ── Extracción de datos ──────────────────────────────────
+    // -- Extraccion de datos --------------------------------------
 
     public String extraerEmail(String token) {
         return extraerClaim(token, Claims::getSubject);
@@ -63,6 +64,10 @@ public class JwtService {
 
     public String extraerRol(String token) {
         return extraerClaim(token, claims -> claims.get("rol", String.class));
+    }
+
+    public Integer extraerTokenVersion(String token) {
+        return extraerClaim(token, claims -> claims.get("tokenVersion", Integer.class));
     }
 
     public <T> T extraerClaim(String token, Function<Claims, T> resolver) {
@@ -77,14 +82,24 @@ public class JwtService {
                 .getPayload();
     }
 
-    // ── Validación ───────────────────────────────────────────
+    // -- Validacion -----------------------------------------------
 
     public boolean esValido(String token, UserDetails userDetails) {
         try {
             String email = extraerEmail(token);
-            return email.equals(userDetails.getUsername()) && !estaExpirado(token);
+            boolean mismaVersion = true;
+
+            if (userDetails instanceof Usuario usuario) {
+                Integer tokenVersion = extraerTokenVersion(token);
+                mismaVersion = tokenVersion != null && tokenVersion.equals(usuario.getTokenVersion());
+            }
+
+            return email.equals(userDetails.getUsername())
+                    && mismaVersion
+                    && userDetails.isEnabled()
+                    && !estaExpirado(token);
         } catch (JwtException | IllegalArgumentException e) {
-            log.warn("Token JWT inválido: {}", e.getMessage());
+            log.warn("Token JWT invalido: {}", e.getMessage());
             return false;
         }
     }
@@ -97,7 +112,7 @@ public class JwtService {
         }
     }
 
-    // ── Clave ────────────────────────────────────────────────
+    // -- Clave ----------------------------------------------------
 
     private SecretKey getKey() {
         return Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
