@@ -1,0 +1,6 @@
+git checkout pablo
+git fetch origin
+git merge origin/main
+git add .
+git commit -m ""
+git push origin pablo
