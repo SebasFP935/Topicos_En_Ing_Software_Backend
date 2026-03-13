@@ -27,7 +27,7 @@ public class Penalizacion {
     private Reserva reserva;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 25)
+    @Column(nullable = false, columnDefinition = "VARCHAR(25) CHECK (tipo IN ('NO_SHOW','USO_INDEBIDO','CANCELACION_TARDIA','OTRO'))")
     private TipoPenalizacion tipo;
 
     @Column(nullable = false)
@@ -42,7 +42,7 @@ public class Penalizacion {
     private LocalDate fechaExpiracion;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 15)
+    @Column(nullable = false, columnDefinition = "VARCHAR(15) CHECK (estado IN ('ACTIVA','CUMPLIDA','APELADA'))")
     @Builder.Default
     private EstadoPenalizacion estado = EstadoPenalizacion.ACTIVA;
 }

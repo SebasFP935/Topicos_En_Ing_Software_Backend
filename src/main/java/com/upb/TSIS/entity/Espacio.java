@@ -1,5 +1,6 @@
 package com.upb.TSIS.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.upb.TSIS.entity.enums.EstadoEspacio;
 import com.upb.TSIS.entity.enums.TipoVehiculo;
 import jakarta.persistence.*;
@@ -21,6 +22,7 @@ public class Espacio {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "zona_id", nullable = false)
     private Zona zona;
@@ -29,12 +31,12 @@ public class Espacio {
     private String codigo;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, columnDefinition = "VARCHAR(20) CHECK (estado IN ('DISPONIBLE','RESERVADO','OCUPADO','BLOQUEADO','MANTENIMIENTO'))")
     @Builder.Default
     private EstadoEspacio estado = EstadoEspacio.DISPONIBLE;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "tipo_vehiculo", nullable = false, length = 20)
+    @Column(name = "tipo_vehiculo", nullable = false, columnDefinition = "VARCHAR(20) CHECK (tipo_vehiculo IN ('AUTO','MOTO','DISCAPACITADO','ELECTRICO'))")
     @Builder.Default
     private TipoVehiculo tipoVehiculo = TipoVehiculo.AUTO;
 
@@ -49,6 +51,7 @@ public class Espacio {
     @Column(name = "creado_en", updatable = false)
     private LocalDateTime creadoEn;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "espacio", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Reserva> reservas;
 

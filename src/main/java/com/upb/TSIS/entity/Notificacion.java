@@ -22,7 +22,7 @@ public class Notificacion {
     private Usuario usuario;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 10)
+    @Column(nullable = false, columnDefinition = "VARCHAR(10) CHECK (tipo IN ('EMAIL','PUSH','SMS'))")
     private TipoNotificacion tipo;
 
     @Column(length = 150)

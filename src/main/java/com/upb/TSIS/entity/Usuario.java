@@ -36,7 +36,7 @@ public class Usuario implements UserDetails {
     private String apellido;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "tipo_documento", length = 25)
+    @Column(name = "tipo_documento", columnDefinition = "VARCHAR(25) CHECK (tipo_documento IN ('CI','PASAPORTE','CARNET_EXTRANJERO'))")
     private TipoDocumento tipoDocumento;
 
     @Column(name = "numero_documento", length = 50)
@@ -46,7 +46,7 @@ public class Usuario implements UserDetails {
     private String telefono;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, columnDefinition = "VARCHAR(20) CHECK (rol IN ('ADMIN','OPERADOR','USUARIO'))")
     @Builder.Default
     private RolUsuario rol = RolUsuario.USUARIO;
 

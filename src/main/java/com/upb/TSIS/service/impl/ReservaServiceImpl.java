@@ -77,16 +77,15 @@ public class ReservaServiceImpl implements IReservaService {
                 .fechaReserva(request.getFechaReserva())
                 .fechaInicio(inicio)
                 .fechaFin(fin)
+                .tipoVehiculo(request.getTipoVehiculo())
                 .estado(EstadoReserva.ACTIVA)
                 .build();
 
         Reserva guardada = reservaRepository.save(reserva);
 
         // 7. Marcar espacio como ocupado si la reserva es para ahora mismo
-        if (!inicio.isAfter(LocalDateTime.now()) && fin.isAfter(LocalDateTime.now())) {
-            espacio.setEstado(EstadoEspacio.OCUPADO);
-            espacioRepository.save(espacio);
-        }
+        espacio.setEstado(EstadoEspacio.RESERVADO);
+        espacioRepository.save(espacio);
 
         // 8. Notificar al usuario
         notificacionService.enviarConfirmacionReserva(usuario, guardada);

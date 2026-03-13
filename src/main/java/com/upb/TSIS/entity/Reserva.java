@@ -1,6 +1,7 @@
 package com.upb.TSIS.entity;
 
 import com.upb.TSIS.entity.enums.EstadoReserva;
+import com.upb.TSIS.entity.enums.TipoVehiculo;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -38,7 +39,7 @@ public class Reserva {
     private LocalDateTime fechaFin;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 15)
+    @Column(nullable = false, columnDefinition = "VARCHAR(15) CHECK (estado IN ('ACTIVA','COMPLETADA','CANCELADA','NO_SHOW'))")
     @Builder.Default
     private EstadoReserva estado = EstadoReserva.ACTIVA;
 
@@ -58,6 +59,11 @@ public class Reserva {
 
     @Column(name = "actualizado_en")
     private LocalDateTime actualizadoEn;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "tipo_vehiculo", nullable = false, columnDefinition = "VARCHAR(20) CHECK (tipo_vehiculo IN ('AUTO','MOTO','DISCAPACITADO','ELECTRICO'))")
+    private TipoVehiculo tipoVehiculo;
+
 
     @PrePersist
     protected void onCreate() {

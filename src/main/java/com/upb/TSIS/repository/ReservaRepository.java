@@ -54,9 +54,11 @@ public interface ReservaRepository extends JpaRepository<Reserva, Integer> {
             """)
     List<Reserva> findReservasActivasHoy();
 
-    // Reservas que ya pasaron su fin pero siguen ACTIVAS (para el job de expiración)
-    @Query("""
+    // Ya no necesitas findReservasQueDebenOcupar,
+    // en su lugar añade esta para el NO_SHOW:
+        @Query("""
             SELECT r FROM Reserva r
+            JOIN FETCH r.espacio e
             WHERE r.estado = 'ACTIVA'
               AND r.fechaFin < :ahora
             """)
