@@ -14,5 +14,6 @@ public interface IReservaService {
     ReservaResponse cancelar(Integer id, Integer usuarioId);
     ReservaResponse checkIn(String codigoQr, Integer operadorId);
     ReservaResponse checkOut(String codigoQr, Integer operadorId);
-    void expirarReservasPasadas(); // llamado por scheduler
+    void expirarReservasPasadas();      // scheduler: marca NO_SHOW y libera espacios
+    void marcarEspaciosReservados();    // scheduler: activa RESERVADO cuando llega la franja
 }

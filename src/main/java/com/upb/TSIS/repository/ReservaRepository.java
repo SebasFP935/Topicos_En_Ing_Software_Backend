@@ -54,13 +54,28 @@ public interface ReservaRepository extends JpaRepository<Reserva, Integer> {
             """)
     List<Reserva> findReservasActivasHoy();
 
-    // Ya no necesitas findReservasQueDebenOcupar,
-    // en su lugar añade esta para el NO_SHOW:
-        @Query("""
+    // Reservas expiradas (para marcar NO_SHOW)
+    @Query("""
             SELECT r FROM Reserva r
             JOIN FETCH r.espacio e
             WHERE r.estado = 'ACTIVA'
               AND r.fechaFin < :ahora
             """)
     List<Reserva> findReservasExpiradas(LocalDateTime ahora);
+
+    /**
+     * NUEVA QUERY — Reservas ACTIVAS cuya franja ya comenzó pero el espacio
+     * todavía no fue marcado como RESERVADO (el scheduler aún no pasó).
+     * Usado por marcarEspaciosReservados() para actualizar el estado visual
+     * del espacio en tiempo real sin tocar la lógica de disponibilidad.
+     */
+    @Query("""
+            SELECT r FROM Reserva r
+            JOIN FETCH r.espacio e
+            WHERE r.estado = 'ACTIVA'
+              AND r.fechaInicio <= :ahora
+              AND r.fechaFin    >  :ahora
+              AND e.estado = 'DISPONIBLE'
+            """)
+    List<Reserva> findReservasActivasEnCurso(LocalDateTime ahora);
 }

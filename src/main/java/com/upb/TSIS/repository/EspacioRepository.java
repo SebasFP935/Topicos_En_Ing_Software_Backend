@@ -19,12 +19,22 @@ public interface EspacioRepository extends JpaRepository<Espacio, Integer> {
 
     List<Espacio> findByEstado(EstadoEspacio estado);
 
-    // Espacios que no tienen reservas activas en el rango de fechas pedido
+    /**
+     * Espacios disponibles para reservar en el rango de tiempo dado.
+     *
+     * CORRECCIÓN: Ya NO filtramos por e.estado = 'DISPONIBLE' de forma global,
+     * porque el estado físico del espacio puede ser RESERVADO u OCUPADO por una
+     * franja diferente, y eso NO debe impedir reservar otra franja distinta.
+     *
+     * Solo excluimos BLOQUEADO y MANTENIMIENTO (decisión administrativa permanente).
+     * El control de solapamiento temporal se delega completamente a la subconsulta
+     * de reservas activas en ese rango.
+     */
     @Query("""
             SELECT e FROM Espacio e
             WHERE e.zona.id = :zonaId
-              AND e.estado = 'DISPONIBLE'
               AND e.tipoVehiculo = :tipoVehiculo
+              AND e.estado NOT IN ('BLOQUEADO', 'MANTENIMIENTO')
               AND e.id NOT IN (
                   SELECT r.espacio.id FROM Reserva r
                   WHERE r.estado NOT IN ('CANCELADA', 'NO_SHOW')

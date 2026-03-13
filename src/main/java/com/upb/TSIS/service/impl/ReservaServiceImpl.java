@@ -19,7 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
 
@@ -65,7 +64,7 @@ public class ReservaServiceImpl implements IReservaService {
         // 4. Seleccionar espacio (específico o automático)
         Espacio espacio = seleccionarEspacio(request, inicio, fin);
 
-        // 5. Verificar solapamiento final
+        // 5. Verificar solapamiento final (doble chequeo de seguridad)
         if (reservaRepository.existeSolapamiento(espacio.getId(), inicio, fin)) {
             throw new ReglaNegocioException("El espacio ya está reservado en ese horario.");
         }
@@ -83,9 +82,17 @@ public class ReservaServiceImpl implements IReservaService {
 
         Reserva guardada = reservaRepository.save(reserva);
 
-        // 7. Marcar espacio como ocupado si la reserva es para ahora mismo
-        espacio.setEstado(EstadoEspacio.RESERVADO);
-        espacioRepository.save(espacio);
+        // 7. CORRECCIÓN: NO se cambia el estado físico del espacio aquí.
+        //
+        //    Antes: se marcaba RESERVADO globalmente al crear la reserva, lo que
+        //    impedía reservar el mismo espacio en cualquier otro horario porque
+        //    findDisponibles() filtraba por estado = DISPONIBLE.
+        //
+        //    Ahora: el estado del espacio solo cambia cuando la franja realmente
+        //    comienza (scheduler marcarEspaciosReservados) o cuando el operador
+        //    hace check-in (→ OCUPADO). La disponibilidad para otros horarios
+        //    se controla exclusivamente mediante la consulta de solapamiento
+        //    de reservas (existeSolapamiento / findDisponibles).
 
         // 8. Notificar al usuario
         notificacionService.enviarConfirmacionReserva(usuario, guardada);
@@ -134,6 +141,7 @@ public class ReservaServiceImpl implements IReservaService {
         }
 
         reserva.setEstado(EstadoReserva.CANCELADA);
+        // Liberar solo si el espacio estaba marcado por esta reserva (puede que aún no haya llegado la hora)
         liberarEspacio(reserva.getEspacio());
         Reserva guardada = reservaRepository.save(reserva);
 
@@ -162,6 +170,7 @@ public class ReservaServiceImpl implements IReservaService {
         }
 
         reserva.setCheckInTime(LocalDateTime.now());
+        // Check-in físico: ahora sí marcamos OCUPADO
         reserva.getEspacio().setEstado(EstadoEspacio.OCUPADO);
         espacioRepository.save(reserva.getEspacio());
 
@@ -185,6 +194,8 @@ public class ReservaServiceImpl implements IReservaService {
         return toResponse(reservaRepository.save(reserva));
     }
 
+    // ── Schedulers ───────────────────────────────────────────────
+
     @Override
     @Scheduled(fixedDelay = 60_000) // cada minuto
     @Transactional
@@ -197,15 +208,41 @@ public class ReservaServiceImpl implements IReservaService {
         }
     }
 
-    // ── Helpers ──────────────────────────────────────────────
+    /**
+     * NUEVO SCHEDULER — Marca visualmente el espacio como RESERVADO
+     * cuando la franja de la reserva comienza.
+     *
+     * Este scheduler es SOLO para el estado visual del mapa en tiempo real.
+     * NO afecta la lógica de disponibilidad, que se basa en la consulta de
+     * solapamiento de reservas (ver findDisponibles en EspacioRepository).
+     */
+    @Scheduled(fixedDelay = 60_000) // cada minuto
+    @Transactional
+    public void marcarEspaciosReservados() {
+        List<Reserva> enCurso = reservaRepository.findReservasActivasEnCurso(LocalDateTime.now());
+        for (Reserva r : enCurso) {
+            Espacio e = r.getEspacio();
+            // Solo marcar RESERVADO si el espacio está DISPONIBLE físicamente
+            // (no tocar OCUPADO, BLOQUEADO ni MANTENIMIENTO)
+            if (e.getEstado() == EstadoEspacio.DISPONIBLE) {
+                e.setEstado(EstadoEspacio.RESERVADO);
+                espacioRepository.save(e);
+            }
+        }
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────
 
     private Espacio seleccionarEspacio(ReservaRequest req, LocalDateTime inicio, LocalDateTime fin) {
         if (req.getEspacioId() != null) {
             Espacio e = espacioRepository.findById(req.getEspacioId())
                     .orElseThrow(() -> new RecursoNoEncontradoException("Espacio no encontrado: " + req.getEspacioId()));
+            // Solo rechazar estados administrativos permanentes
             if (e.getEstado() == EstadoEspacio.BLOQUEADO || e.getEstado() == EstadoEspacio.MANTENIMIENTO) {
                 throw new ReglaNegocioException("El espacio solicitado no está disponible.");
             }
+            // NOTA: No rechazamos por RESERVADO u OCUPADO aquí.
+            // El solapamiento temporal se verifica en el paso 5 (existeSolapamiento).
             return e;
         }
         // Asignación automática: primer disponible de la zona
@@ -217,9 +254,19 @@ public class ReservaServiceImpl implements IReservaService {
         return disponibles.get(0);
     }
 
+    /**
+     * Libera el espacio físicamente solo si fue marcado por una reserva
+     * (RESERVADO u OCUPADO). No sobreescribe estados administrativos
+     * como BLOQUEADO o MANTENIMIENTO.
+     */
     private void liberarEspacio(Espacio espacio) {
-        espacio.setEstado(EstadoEspacio.DISPONIBLE);
-        espacioRepository.save(espacio);
+        if (espacio.getEstado() == EstadoEspacio.RESERVADO
+                || espacio.getEstado() == EstadoEspacio.OCUPADO) {
+            espacio.setEstado(EstadoEspacio.DISPONIBLE);
+            espacioRepository.save(espacio);
+        }
+        // BLOQUEADO y MANTENIMIENTO se ignoran intencionalmente:
+        // esos estados los gestiona el admin, no el flujo de reservas.
     }
 
     /**
@@ -241,21 +288,19 @@ public class ReservaServiceImpl implements IReservaService {
                     .orElseThrow(() -> new ReglaNegocioException("Franja horaria inválida: " + codigoFranja));
 
             String horaStr = esInicio ? franja.get("inicio") : franja.get("fin");
-            return LocalDateTime.of(fecha, LocalTime.parse(horaStr));
-        } catch (ReglaNegocioException | RecursoNoEncontradoException e) {
+            return LocalDateTime.of(fecha, java.time.LocalTime.parse(horaStr));
+        } catch (ReglaNegocioException e) {
             throw e;
         } catch (Exception e) {
-            throw new ReglaNegocioException("Error al procesar franjas horarias: " + e.getMessage());
+            throw new ReglaNegocioException("Error al procesar la franja horaria: " + codigoFranja);
         }
     }
 
-    /** Cuenta cuántas franjas abarca la selección (A→B = 2 franjas). */
-    private long contarFranjas(String inicio, String fin) {
-        // Las franjas van de A a F (índice 0 a 5)
-        int idxInicio = inicio.toUpperCase().charAt(0) - 'A';
-        int idxFin    = fin.toUpperCase().charAt(0) - 'A';
-        if (idxFin < idxInicio) throw new ReglaNegocioException("La franja de fin debe ser >= franja de inicio.");
-        return (idxFin - idxInicio) + 1;
+    private long contarFranjas(String franjaInicio, String franjaFin) {
+        char inicio = franjaInicio.toUpperCase().charAt(0);
+        char fin    = franjaFin.toUpperCase().charAt(0);
+        if (fin < inicio) throw new ReglaNegocioException("La franja fin no puede ser anterior a la franja inicio.");
+        return (fin - inicio) + 1;
     }
 
     private int obtenerReglaNumerica(TipoRegla tipo, String campo, int defaultVal) {
