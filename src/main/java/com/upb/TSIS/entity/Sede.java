@@ -1,5 +1,6 @@
 package com.upb.TSIS.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -34,6 +35,7 @@ public class Sede {
     @Column(name = "creado_en", updatable = false)
     private LocalDateTime creadoEn;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "sede", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Zona> zonas;
 

@@ -20,7 +20,7 @@ public class ConfiguracionRegla {
     private Integer id;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "tipo_regla", nullable = false, length = 20)
+    @Column(name = "tipo_regla", nullable = false, columnDefinition = "VARCHAR(20) CHECK (tipo_regla IN ('HORARIO','PRIORIDAD','PENALIZACION','ANTICIPACION'))")
     private TipoRegla tipoRegla;
 
     @Column(name = "nombre_regla", nullable = false, length = 100)
