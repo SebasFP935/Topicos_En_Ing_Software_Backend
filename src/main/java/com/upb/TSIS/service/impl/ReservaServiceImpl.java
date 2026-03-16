@@ -68,6 +68,30 @@ public class ReservaServiceImpl implements IReservaService {
             throw new ReglaNegocioException("Máximo " + maxFranjas + " franja(s) por reserva.");
         }
 
+        // 3b. Validar límite total de reservas activas (máximo 3)
+        long reservasActivas = reservaRepository.contarReservasActivasTotales(usuarioId);
+        if (reservasActivas >= 3) {
+            throw new ReglaNegocioException(
+                    "Has alcanzado el límite máximo de 3 reservas activas. " +
+                            "Completa o cancela una reserva existente antes de crear una nueva.");
+        }
+
+        // 3c. Validar límite de 1 reserva por día
+        if (reservaRepository.existeReservaActivaEnFecha(usuarioId, request.getFechaReserva())) {
+            throw new ReglaNegocioException(
+                    "Ya tienes una reserva activa para el " + request.getFechaReserva() +
+                            ". Solo se permite 1 reserva por día.");
+        }
+
+        // 3d. Validar que el usuario no tenga otra reserva en el mismo horario (otro espacio, misma franja)
+        if (reservaRepository.existeSolapamientoUsuario(usuarioId, inicio, fin)) {
+            throw new ReglaNegocioException(
+                    "Ya tienes una reserva activa en ese horario (" +
+                            request.getFranjaInicio() + " - " + (request.getFranjaFin() != null ? request.getFranjaFin() : request.getFranjaInicio()) +
+                            "). No puedes reservar dos espacios en el mismo horario.");
+        }
+
+
         // 4. Seleccionar espacio (específico o automático)
         Espacio espacio = seleccionarEspacio(request, inicio, fin);
 

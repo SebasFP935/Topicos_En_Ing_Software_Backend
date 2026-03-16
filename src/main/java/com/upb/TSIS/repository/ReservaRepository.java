@@ -103,4 +103,31 @@ public interface ReservaRepository extends JpaRepository<Reserva, Integer> {
       AND r.fechaFin <= :limiteCheckOut
     """)
     List<Reserva> findActivasParaCheckoutTardio(@Param("limiteCheckOut") LocalDateTime limiteCheckOut);
+
+    // Total de reservas ACTIVAS del usuario (en cualquier fecha futura)
+    @Query("""
+        SELECT COUNT(r) FROM Reserva r
+        WHERE r.usuario.id = :usuarioId
+          AND r.estado = 'ACTIVA'
+        """)
+    long contarReservasActivasTotales(Integer usuarioId);
+
+    // ¿El usuario ya tiene una reserva ACTIVA en esa fecha?
+    @Query("""
+        SELECT COUNT(r) > 0 FROM Reserva r
+        WHERE r.usuario.id = :usuarioId
+          AND r.estado = 'ACTIVA'
+          AND r.fechaReserva = :fecha
+        """)
+    boolean existeReservaActivaEnFecha(Integer usuarioId, LocalDate fecha);
+
+    // ¿El usuario ya tiene una reserva ACTIVA que se solapa con ese rango horario?
+    @Query("""
+        SELECT COUNT(r) > 0 FROM Reserva r
+        WHERE r.usuario.id = :usuarioId
+          AND r.estado = 'ACTIVA'
+          AND r.fechaInicio < :fin
+          AND r.fechaFin    > :inicio
+        """)
+    boolean existeSolapamientoUsuario(Integer usuarioId, LocalDateTime inicio, LocalDateTime fin);
 }
