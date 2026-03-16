@@ -5,7 +5,9 @@ import com.upb.TSIS.entity.Reserva;
 import com.upb.TSIS.entity.Usuario;
 import com.upb.TSIS.entity.enums.TipoNotificacion;
 import com.upb.TSIS.repository.NotificacionRepository;
+import com.upb.TSIS.service.IEmailService;
 import com.upb.TSIS.service.INotificacionService;
+import com.upb.TSIS.service.IQrTokenService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +19,8 @@ import java.util.List;
 public class NotificacionServiceImpl implements INotificacionService {
 
     private final NotificacionRepository notificacionRepository;
+    private final IEmailService emailService;
+    private final IQrTokenService qrTokenService;
 
     @Override
     @Transactional
@@ -31,20 +35,25 @@ public class NotificacionServiceImpl implements INotificacionService {
         // TODO: integrar proveedor de email/push (SendGrid, Firebase, etc.)
     }
 
+    // Reemplaza el método enviarConfirmacionReserva existente
     @Override
     @Transactional
     public void enviarConfirmacionReserva(Usuario usuario, Reserva reserva) {
+        // 1. Notificación interna (igual que antes)
         String asunto  = "Reserva confirmada - " + reserva.getEspacio().getCodigo();
         String mensaje = String.format(
-                "Hola %s, tu reserva está confirmada.\nEspacio: %s\nFecha: %s\nHorario: %s - %s\nCódigo QR: %s",
-                usuario.getNombre(),
+                "Tu reserva está confirmada.\nEspacio: %s\nFecha: %s\nHorario: %s - %s",
                 reserva.getEspacio().getCodigo(),
                 reserva.getFechaReserva(),
                 reserva.getFechaInicio().toLocalTime(),
-                reserva.getFechaFin().toLocalTime(),
-                reserva.getCodigoQr()
+                reserva.getFechaFin().toLocalTime()
         );
         enviar(usuario, TipoNotificacion.EMAIL, asunto, mensaje);
+
+        // 2. Correo real con ticket adjunto
+        // La qrUrl la regeneramos aquí a partir del token (no se persiste, es barato)
+        String qrUrl = qrTokenService.generarUrlQr(reserva);
+        emailService.enviarTicketReserva(reserva, qrUrl);
     }
 
     @Override
