@@ -2,6 +2,7 @@ package com.upb.TSIS.controller;
 
 import com.upb.TSIS.dto.request.ReservaRequest;
 import com.upb.TSIS.dto.response.ReservaResponse;
+import com.upb.TSIS.dto.response.ScanResponse;
 import com.upb.TSIS.entity.Usuario;
 import com.upb.TSIS.service.IReservaService;
 import jakarta.validation.Valid;
@@ -101,5 +102,17 @@ public class ReservaController {
             @PathVariable String codigoQr,
             @AuthenticationPrincipal Usuario operador) {
         return ResponseEntity.ok(reservaService.checkOut(codigoQr, operador.getId()));
+    }
+
+    /**
+     * GET /api/reservas/escanear/{token}
+     *
+     * Endpoint sin autenticación — el token firmado ES la autenticación.
+     * Se activa cuando el usuario escanea el QR con su cámara.
+     * Determina automáticamente si es check-in o check-out.
+     */
+    @GetMapping("/escanear/{token}")
+    public ResponseEntity<ScanResponse> escanear(@PathVariable String token) {
+        return ResponseEntity.ok(reservaService.escanear(token));
     }
 }

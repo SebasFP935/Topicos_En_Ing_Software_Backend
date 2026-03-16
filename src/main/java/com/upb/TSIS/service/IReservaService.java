@@ -2,6 +2,7 @@ package com.upb.TSIS.service;
 
 import com.upb.TSIS.dto.request.ReservaRequest;
 import com.upb.TSIS.dto.response.ReservaResponse;
+import com.upb.TSIS.dto.response.ScanResponse;
 
 import java.util.List;
 
@@ -14,6 +15,7 @@ public interface IReservaService {
     ReservaResponse cancelar(Integer id, Integer usuarioId);
     ReservaResponse checkIn(String codigoQr, Integer operadorId);
     ReservaResponse checkOut(String codigoQr, Integer operadorId);
-    void expirarReservasPasadas();      // scheduler: marca NO_SHOW y libera espacios
+    void procesarReservasVencidas();      // scheduler: marca NO_SHOW y libera espacios
     void marcarEspaciosReservados();    // scheduler: activa RESERVADO cuando llega la franja
+    ScanResponse escanear(String token);
 }

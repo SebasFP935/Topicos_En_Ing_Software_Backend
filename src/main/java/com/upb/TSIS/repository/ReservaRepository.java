@@ -4,6 +4,7 @@ import com.upb.TSIS.entity.Reserva;
 import com.upb.TSIS.entity.enums.EstadoReserva;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
@@ -78,4 +79,28 @@ public interface ReservaRepository extends JpaRepository<Reserva, Integer> {
               AND e.estado = 'DISPONIBLE'
             """)
     List<Reserva> findReservasActivasEnCurso(LocalDateTime ahora);
+
+    /**
+     * Reservas ACTIVAS sin check-in cuyo inicio + ventana ya pasó → candidatas a NO_SHOW.
+     * @param limiteCheckIn = now() - CHECKIN_VENTANA_DESPUES_MIN
+     */
+    @Query("""
+    SELECT r FROM Reserva r
+    WHERE r.estado = 'ACTIVA'
+      AND r.checkInTime IS NULL
+      AND r.fechaInicio <= :limiteCheckIn
+    """)
+    List<Reserva> findActivasParaNoShow(@Param("limiteCheckIn") LocalDateTime limiteCheckIn);
+
+    /**
+     * Reservas ACTIVAS con check-in cuyo fin + ventana de gracia ya pasó → candidatas a penalización.
+     * @param limiteCheckOut = now() - CHECKOUT_VENTANA_EXTRA_MIN
+     */
+    @Query("""
+    SELECT r FROM Reserva r
+    WHERE r.estado = 'ACTIVA'
+      AND r.checkInTime IS NOT NULL
+      AND r.fechaFin <= :limiteCheckOut
+    """)
+    List<Reserva> findActivasParaCheckoutTardio(@Param("limiteCheckOut") LocalDateTime limiteCheckOut);
 }

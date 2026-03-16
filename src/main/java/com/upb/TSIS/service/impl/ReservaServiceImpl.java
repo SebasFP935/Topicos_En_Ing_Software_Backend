@@ -1,12 +1,15 @@
 package com.upb.TSIS.service.impl;
 
+import com.upb.TSIS.dto.QrPayload;
+import com.upb.TSIS.dto.response.ScanResponse;
+import com.upb.TSIS.entity.enums.*;
+import com.upb.TSIS.exception.TokenQrInvalidoException;
+import com.upb.TSIS.service.IQrTokenService;
+import lombok.extern.slf4j.Slf4j;
 import tools.jackson.databind.ObjectMapper;
 import com.upb.TSIS.dto.request.ReservaRequest;
 import com.upb.TSIS.dto.response.ReservaResponse;
 import com.upb.TSIS.entity.*;
-import com.upb.TSIS.entity.enums.EstadoEspacio;
-import com.upb.TSIS.entity.enums.EstadoReserva;
-import com.upb.TSIS.entity.enums.TipoRegla;
 import com.upb.TSIS.exception.RecursoNoEncontradoException;
 import com.upb.TSIS.exception.ReglaNegocioException;
 import com.upb.TSIS.repository.*;
@@ -22,6 +25,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
+import static com.upb.TSIS.config.ParkingConstants.*;
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ReservaServiceImpl implements IReservaService {
@@ -34,6 +39,8 @@ public class ReservaServiceImpl implements IReservaService {
     private final EntidadRepository        entidadRepository;
     private final INotificacionService     notificacionService;
     private final ObjectMapper             objectMapper;
+    private final IQrTokenService qrTokenService;
+    private final PenalizacionRepository penalizacionRepository;
 
     @Override
     @Transactional
@@ -196,15 +203,38 @@ public class ReservaServiceImpl implements IReservaService {
 
     // ── Schedulers ───────────────────────────────────────────────
 
+    /**
+     * Reemplaza expirarReservasPasadas().
+     * Separa los dos casos: no-show (sin penalización) y checkout tardío (con penalización).
+     */
     @Override
     @Scheduled(fixedDelay = 60_000) // cada minuto
     @Transactional
-    public void expirarReservasPasadas() {
-        List<Reserva> expiradas = reservaRepository.findReservasExpiradas(LocalDateTime.now());
-        for (Reserva r : expiradas) {
+    public void procesarReservasVencidas() {
+        LocalDateTime ahora = LocalDateTime.now();
+
+        // ── Caso 1: NO_SHOW — sin check-in, ventana de entrada expiró ─
+        // Sin penalización para el usuario.
+        LocalDateTime limiteEntrada = ahora.minusMinutes(CHECKIN_VENTANA_DESPUES_MIN);
+        List<Reserva> noShows = reservaRepository.findActivasParaNoShow(limiteEntrada);
+        for (Reserva r : noShows) {
             r.setEstado(EstadoReserva.NO_SHOW);
             liberarEspacio(r.getEspacio());
             reservaRepository.save(r);
+            log.info("NO_SHOW automático — reserva {} usuario {}", r.getId(), r.getUsuario().getId());
+        }
+
+        // ── Caso 2: Checkout tardío — con check-in, ventana de salida expiró ─
+        // Con penalización escalada.
+        LocalDateTime limiteSalida = ahora.minusMinutes(CHECKOUT_VENTANA_EXTRA_MIN);
+        List<Reserva> tardias = reservaRepository.findActivasParaCheckoutTardio(limiteSalida);
+        for (Reserva r : tardias) {
+            aplicarPenalizacion(r, TipoPenalizacion.CANCELACION_TARDIA);
+            r.setCheckOutTime(ahora);
+            r.setEstado(EstadoReserva.COMPLETADA);
+            liberarEspacio(r.getEspacio());
+            reservaRepository.save(r);
+            log.warn("Checkout forzado con penalización — reserva {} usuario {}", r.getId(), r.getUsuario().getId());
         }
     }
 
@@ -327,12 +357,115 @@ public class ReservaServiceImpl implements IReservaService {
                 .orElseThrow(() -> new RecursoNoEncontradoException("Reserva no encontrada: " + id));
     }
 
+    @Override
+    @Transactional
+    public ScanResponse escanear(String token) {
+        // 1. Validar firma — lanza TokenQrInvalidoException si es inválido
+        QrPayload payload = qrTokenService.validarToken(token);
+
+        // 2. Cargar reserva y verificar consistencia básica
+        Reserva reserva = reservaRepository.findById(payload.r())
+                .orElseThrow(() -> new RecursoNoEncontradoException("Reserva no encontrada."));
+
+        if (!reserva.getUsuario().getId().equals(payload.u()) ||
+                !reserva.getEspacio().getId().equals(payload.e())) {
+            throw new TokenQrInvalidoException("El token no corresponde a esta reserva.");
+        }
+
+        if (reserva.getEstado() != EstadoReserva.ACTIVA) {
+            throw new ReglaNegocioException("La reserva no está activa (estado: " + reserva.getEstado() + ").");
+        }
+
+        LocalDateTime ahora = LocalDateTime.now();
+
+        // ── PRIMERA PASADA: Check-in ──────────────────────────────────
+        if (reserva.getCheckInTime() == null) {
+            LocalDateTime ventanaInicio = reserva.getFechaInicio().minusMinutes(CHECKIN_VENTANA_ANTES_MIN);
+            LocalDateTime ventanaFin    = reserva.getFechaInicio().plusMinutes(CHECKIN_VENTANA_DESPUES_MIN);
+
+            if (ahora.isBefore(ventanaInicio)) {
+                throw new ReglaNegocioException(
+                        "Aún es demasiado temprano. Puedes hacer check-in a partir de las "
+                                + ventanaInicio.toLocalTime() + ".");
+            }
+            if (ahora.isAfter(ventanaFin)) {
+                // La ventana pasó → NO_SHOW (el scheduler también lo haría, pero respondemos claro)
+                reserva.setEstado(EstadoReserva.NO_SHOW);
+                liberarEspacio(reserva.getEspacio());
+                reservaRepository.save(reserva);
+                throw new ReglaNegocioException("La ventana de check-in expiró. La reserva fue marcada como NO_SHOW.");
+            }
+
+            // Todo OK → check-in
+            reserva.setCheckInTime(ahora);
+            reserva.getEspacio().setEstado(EstadoEspacio.OCUPADO);
+            espacioRepository.save(reserva.getEspacio());
+            reservaRepository.save(reserva);
+
+            return ScanResponse.builder()
+                    .accion("CHECK_IN")
+                    .mensaje("¡Bienvenido! Tu espacio está activo.")
+                    .estadoEspacio("OCUPADO")
+                    .codigoEspacio(reserva.getEspacio().getCodigo())
+                    .zonaNombre(reserva.getEspacio().getZona().getNombre())
+                    .timestamp(ahora)
+                    .build();
+        }
+
+        // ── SEGUNDA PASADA: Check-out ─────────────────────────────────
+        LocalDateTime limiteCheckout = reserva.getFechaFin().plusMinutes(CHECKOUT_VENTANA_EXTRA_MIN);
+
+        if (ahora.isAfter(limiteCheckout)) {
+            // Checkout tardío — aún lo procesamos pero con penalización
+            aplicarPenalizacion(reserva, TipoPenalizacion.CANCELACION_TARDIA);
+        }
+
+        reserva.setCheckOutTime(ahora);
+        reserva.setEstado(EstadoReserva.COMPLETADA);
+        liberarEspacio(reserva.getEspacio());
+        reservaRepository.save(reserva);
+
+        return ScanResponse.builder()
+                .accion("CHECK_OUT")
+                .mensaje("¡Hasta pronto! Tu espacio quedó liberado.")
+                .estadoEspacio("DISPONIBLE")
+                .codigoEspacio(reserva.getEspacio().getCodigo())
+                .zonaNombre(reserva.getEspacio().getZona().getNombre())
+                .timestamp(ahora)
+                .build();
+    }
+
+    private void aplicarPenalizacion(Reserva reserva, TipoPenalizacion tipo) {
+        int penalizacionesActivas = penalizacionRepository
+                .findByUsuario_IdAndEstado(reserva.getUsuario().getId(), EstadoPenalizacion.ACTIVA)
+                .size();
+
+        int puntosDescontados = PUNTOS_BASE_PENALIZACION
+                + (penalizacionesActivas / PENALIZACIONES_POR_INCREMENTO_PUNTO);
+
+        Penalizacion penalizacion = Penalizacion.builder()
+                .usuario(reserva.getUsuario())
+                .reserva(reserva)
+                .tipo(tipo)
+                .puntosDescontados(puntosDescontados)
+                .estado(EstadoPenalizacion.ACTIVA)
+                .build();
+
+        penalizacionRepository.save(penalizacion);
+    }
+
     public ReservaResponse toResponse(Reserva r) {
         Espacio e = r.getEspacio();
         Zona    z = e.getZona();
+
+        String token = qrTokenService.generarToken(r);
+        String url   = qrTokenService.generarUrlQr(r);
+
         return ReservaResponse.builder()
                 .id(r.getId())
-                .codigoQr(r.getCodigoQr())
+                .codigoQr(r.getCodigoQr())          // UUID interno (para operador manual)
+                .qrToken(token)                      // token firmado para el QR
+                .qrUrl(url)                          // URL a codificar como QR image
                 .fechaReserva(r.getFechaReserva())
                 .fechaInicio(r.getFechaInicio())
                 .fechaFin(r.getFechaFin())

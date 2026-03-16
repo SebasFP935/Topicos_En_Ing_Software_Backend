@@ -24,4 +24,6 @@ public class ReservaResponse {
     private String usuarioNombre;
     private String usuarioEmail;
     private LocalDateTime creadoEn;
+    private String qrToken;  // token firmado listo para codificar como QR
+    private String qrUrl;    // URL completa que va dentro del código QR
 }

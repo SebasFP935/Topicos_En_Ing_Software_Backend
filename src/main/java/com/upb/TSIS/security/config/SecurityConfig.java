@@ -65,6 +65,9 @@ public class SecurityConfig {
                                 "/api/auth/**"
                         ).permitAll()
 
+                        // ── Escaneo del QR ──────────────────────────
+                        .requestMatchers(HttpMethod.GET, "/api/reservas/escanear/**").permitAll()
+
                         // ── Rutas solo ADMIN ────────────────────────
                         .requestMatchers(HttpMethod.POST,   "/api/sedes/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT,    "/api/sedes/**").hasRole("ADMIN")
