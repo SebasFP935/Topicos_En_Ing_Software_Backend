@@ -19,36 +19,33 @@ public class ZonaController {
 
     private final IZonaService zonaService;
 
-    // GET /api/zonas/sede/{sedeId}
-    // Cualquier usuario autenticado puede ver zonas activas de una sede
     @GetMapping("/sede/{sedeId}")
     public ResponseEntity<List<Zona>> listarPorSede(@PathVariable Integer sedeId) {
         return ResponseEntity.ok(zonaService.listarPorSede(sedeId));
     }
 
-    // GET /api/zonas/{id}
     @GetMapping("/{id}")
     public ResponseEntity<Zona> obtenerPorId(@PathVariable Integer id) {
         return ResponseEntity.ok(zonaService.obtenerPorId(id));
     }
 
-    // POST /api/zonas  → solo ADMIN
+    // ADMIN o OPERADOR pueden crear zonas
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERADOR')")
     public ResponseEntity<Zona> crear(@Valid @RequestBody ZonaRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(zonaService.crear(request));
     }
 
-    // PUT /api/zonas/{id}  → solo ADMIN
+    // ADMIN o OPERADOR pueden editar zonas
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERADOR')")
     public ResponseEntity<Zona> actualizar(
             @PathVariable Integer id,
             @Valid @RequestBody ZonaRequest request) {
         return ResponseEntity.ok(zonaService.actualizar(id, request));
     }
 
-    // DELETE /api/zonas/{id}  → desactiva, solo ADMIN
+    // Solo ADMIN puede desactivar zonas
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> desactivar(@PathVariable Integer id) {

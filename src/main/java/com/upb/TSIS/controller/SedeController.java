@@ -19,36 +19,33 @@ public class SedeController {
 
     private final ISedeService sedeService;
 
-    // GET /api/sedes
-    // Cualquier usuario autenticado puede ver las sedes activas
     @GetMapping
     public ResponseEntity<List<Sede>> listarActivas() {
         return ResponseEntity.ok(sedeService.listarActivas());
     }
 
-    // GET /api/sedes/{id}
     @GetMapping("/{id}")
     public ResponseEntity<Sede> obtenerPorId(@PathVariable Integer id) {
         return ResponseEntity.ok(sedeService.obtenerPorId(id));
     }
 
-    // POST /api/sedes  → solo ADMIN
+    // ADMIN o OPERADOR pueden crear sedes
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERADOR')")
     public ResponseEntity<Sede> crear(@Valid @RequestBody SedeRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(sedeService.crear(request));
     }
 
-    // PUT /api/sedes/{id}  → solo ADMIN
+    // ADMIN o OPERADOR pueden editar sedes
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERADOR')")
     public ResponseEntity<Sede> actualizar(
             @PathVariable Integer id,
             @Valid @RequestBody SedeRequest request) {
         return ResponseEntity.ok(sedeService.actualizar(id, request));
     }
 
-    // DELETE /api/sedes/{id}  → desactiva, solo ADMIN
+    // Solo ADMIN puede desactivar sedes
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> desactivar(@PathVariable Integer id) {
