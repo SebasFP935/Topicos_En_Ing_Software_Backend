@@ -9,11 +9,16 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface EspacioRepository extends JpaRepository<Espacio, Integer> {
 
     List<Espacio> findByZona_Id(Integer zonaId);
+
+    Optional<Espacio> findByZona_IdAndCodigoIgnoreCase(Integer zonaId, String codigo);
+
+    Optional<Espacio> findByCodigoIgnoreCase(String codigo);
 
     List<Espacio> findByZona_IdAndEstado(Integer zonaId, EstadoEspacio estado);
 

@@ -1,4 +1,4 @@
-package com.upb.TSIS.security.config;
+﻿package com.upb.TSIS.security.config;
 
 import com.upb.TSIS.repository.UsuarioRepository;
 import com.upb.TSIS.security.filter.JwtAuthenticationFilter;
@@ -37,43 +37,44 @@ public class SecurityConfig {
     private final CustomAuthEntryPoint    authEntryPoint;
     private final CustomAccessDeniedHandler accessDeniedHandler;
 
-    // ── Cadena de filtros principal ──────────────────────────
+    // â”€â”€ Cadena de filtros principal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwtFilter) throws Exception {
         http
-                // Desactivar CSRF (usamos JWT, no cookies de sesión)
+                // Desactivar CSRF (usamos JWT, no cookies de sesiÃ³n)
                 .csrf(AbstractHttpConfigurer::disable)
 
                 // CORS
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
 
-                // Sin estado (stateless): JWT reemplaza la sesión HTTP
+                // Sin estado (stateless): JWT reemplaza la sesiÃ³n HTTP
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-                // Manejo de errores de autenticación/autorización
+                // Manejo de errores de autenticaciÃ³n/autorizaciÃ³n
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(authEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler))
 
-                // Reglas de autorización por ruta
+                // Reglas de autorizaciÃ³n por ruta
                 .authorizeHttpRequests(auth -> auth
 
-                        // ── Rutas públicas ──────────────────────────
+                        // â”€â”€ Rutas pÃºblicas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                         .requestMatchers(
                                 "/api/auth/**"
                         ).permitAll()
 
-                        // ── Escaneo del QR ──────────────────────────
+                        // â”€â”€ Escaneo del QR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                         .requestMatchers(HttpMethod.GET, "/api/reservas/escanear/**").permitAll()
 
-                        // ── Rutas solo ADMIN ────────────────────────
+                        // â”€â”€ Rutas solo ADMIN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                         .requestMatchers(HttpMethod.POST,   "/api/sedes/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT,    "/api/sedes/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/sedes/**").hasRole("ADMIN")
 
                         .requestMatchers(HttpMethod.POST,   "/api/zonas/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT,    "/api/zonas/*/mapa").hasAnyRole("ADMIN", "OPERADOR")
                         .requestMatchers(HttpMethod.PUT,    "/api/zonas/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/zonas/**").hasRole("ADMIN")
 
@@ -83,17 +84,17 @@ public class SecurityConfig {
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/usuarios/**").hasRole("ADMIN")
 
-                        // ── Rutas ADMIN y OPERADOR ──────────────────
+                        // â”€â”€ Rutas ADMIN y OPERADOR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                         .requestMatchers("/api/bloqueos/**").hasAnyRole("ADMIN", "OPERADOR")
                         .requestMatchers("/api/reservas/hoy").hasAnyRole("ADMIN", "OPERADOR")
                         .requestMatchers("/api/reservas/checkin/**").hasAnyRole("ADMIN", "OPERADOR")
                         .requestMatchers("/api/reservas/checkout/**").hasAnyRole("ADMIN", "OPERADOR")
 
-                        // ── El resto requiere solo estar autenticado ─
+                        // â”€â”€ El resto requiere solo estar autenticado â”€
                         .anyRequest().authenticated()
                 )
 
-                // Registrar el filtro JWT antes del filtro de usuario/contraseña
+                // Registrar el filtro JWT antes del filtro de usuario/contraseÃ±a
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
 
                 // Usar nuestro AuthenticationProvider
@@ -102,12 +103,12 @@ public class SecurityConfig {
         return http.build();
     }
 
-    // ── CORS ─────────────────────────────────────────────────
+    // â”€â”€ CORS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        // En desarrollo permite el origen de React; en producción ajustar
+        // En desarrollo permite el origen de React; en producciÃ³n ajustar
         config.setAllowedOrigins(List.of("http://localhost:3000", "http://localhost:5173"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
@@ -118,7 +119,7 @@ public class SecurityConfig {
         return source;
     }
 
-    // ── Beans de seguridad ───────────────────────────────────
+    // â”€â”€ Beans de seguridad â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Bean
     public UserDetailsService userDetailsService() {
@@ -144,3 +145,5 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 }
+
+
