@@ -39,9 +39,9 @@ public class Reserva {
     private LocalDateTime fechaFin;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, columnDefinition = "VARCHAR(15) CHECK (estado IN ('ACTIVA','COMPLETADA','CANCELADA','NO_SHOW'))")
+    @Column(nullable = false, columnDefinition = "VARCHAR(25) CHECK (estado IN ('PENDIENTE_ACTIVACION','ACTIVA','COMPLETADA','CANCELADA','NO_SHOW'))")
     @Builder.Default
-    private EstadoReserva estado = EstadoReserva.ACTIVA;
+    private EstadoReserva estado = EstadoReserva.PENDIENTE_ACTIVACION;
 
     /** UUID único para validar acceso vía lector QR o barrera */
     @Column(name = "codigo_qr", nullable = false, unique = true, updatable = false, length = 36)

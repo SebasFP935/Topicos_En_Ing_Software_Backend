@@ -1,6 +1,7 @@
 package com.upb.TSIS.service;
 
 import com.upb.TSIS.dto.request.EspacioRequest;
+import com.upb.TSIS.dto.response.EspacioQrResponse;
 import com.upb.TSIS.dto.response.EspacioResponse;
 import com.upb.TSIS.entity.enums.EstadoEspacio;
 import com.upb.TSIS.entity.enums.TipoVehiculo;
@@ -15,5 +16,6 @@ public interface IEspacioService {
     List<EspacioResponse> listarDisponibles(Integer zonaId, TipoVehiculo tipoVehiculo,
                                             LocalDateTime inicio, LocalDateTime fin);
     EspacioResponse actualizarEstado(Integer id, EstadoEspacio nuevoEstado);
+    EspacioQrResponse regenerarCodigoQr(Integer id);
     void eliminar(Integer id);
 }

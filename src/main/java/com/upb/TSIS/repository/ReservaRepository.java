@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -18,6 +19,12 @@ public interface ReservaRepository extends JpaRepository<Reserva, Integer> {
     List<Reserva> findByUsuario_Id(Integer usuarioId);
 
     List<Reserva> findByUsuario_IdAndEstado(Integer usuarioId, EstadoReserva estado);
+
+    List<Reserva> findByUsuario_IdAndEspacio_IdAndEstadoInOrderByFechaInicioAsc(
+            Integer usuarioId,
+            Integer espacioId,
+            Collection<EstadoReserva> estados
+    );
 
     List<Reserva> findByFechaReservaAndEstadoNot(LocalDate fecha, EstadoReserva estado);
 
@@ -37,7 +44,7 @@ public interface ReservaRepository extends JpaRepository<Reserva, Integer> {
     @Query("""
             SELECT COUNT(r) FROM Reserva r
             WHERE r.usuario.id = :usuarioId
-              AND r.estado = 'ACTIVA'
+              AND r.estado IN ('PENDIENTE_ACTIVACION', 'ACTIVA')
               AND r.fechaReserva = :fecha
             """)
     long contarReservasActivasEnFecha(Integer usuarioId, LocalDate fecha);
@@ -50,7 +57,7 @@ public interface ReservaRepository extends JpaRepository<Reserva, Integer> {
             JOIN FETCH e.zona z
             JOIN FETCH z.sede s
             WHERE r.fechaReserva = CURRENT_DATE
-              AND r.estado NOT IN ('CANCELADA', 'NO_SHOW')
+              AND r.estado IN ('PENDIENTE_ACTIVACION', 'ACTIVA')
             ORDER BY r.fechaInicio
             """)
     List<Reserva> findReservasActivasHoy();
@@ -59,7 +66,7 @@ public interface ReservaRepository extends JpaRepository<Reserva, Integer> {
     @Query("""
             SELECT r FROM Reserva r
             JOIN FETCH r.espacio e
-            WHERE r.estado = 'ACTIVA'
+            WHERE r.estado IN ('PENDIENTE_ACTIVACION', 'ACTIVA')
               AND r.fechaFin < :ahora
             """)
     List<Reserva> findReservasExpiradas(LocalDateTime ahora);
@@ -73,7 +80,8 @@ public interface ReservaRepository extends JpaRepository<Reserva, Integer> {
     @Query("""
             SELECT r FROM Reserva r
             JOIN FETCH r.espacio e
-            WHERE r.estado = 'ACTIVA'
+            WHERE r.estado = 'PENDIENTE_ACTIVACION'
+              AND r.checkInTime IS NULL
               AND r.fechaInicio <= :ahora
               AND r.fechaFin    >  :ahora
               AND e.estado = 'DISPONIBLE'
@@ -86,7 +94,7 @@ public interface ReservaRepository extends JpaRepository<Reserva, Integer> {
      */
     @Query("""
     SELECT r FROM Reserva r
-    WHERE r.estado = 'ACTIVA'
+    WHERE r.estado = 'PENDIENTE_ACTIVACION'
       AND r.checkInTime IS NULL
       AND r.fechaInicio <= :limiteCheckIn
     """)
@@ -108,7 +116,7 @@ public interface ReservaRepository extends JpaRepository<Reserva, Integer> {
     @Query("""
         SELECT COUNT(r) FROM Reserva r
         WHERE r.usuario.id = :usuarioId
-          AND r.estado = 'ACTIVA'
+          AND r.estado IN ('PENDIENTE_ACTIVACION', 'ACTIVA')
         """)
     long contarReservasActivasTotales(Integer usuarioId);
 
@@ -116,7 +124,7 @@ public interface ReservaRepository extends JpaRepository<Reserva, Integer> {
     @Query("""
         SELECT COUNT(r) > 0 FROM Reserva r
         WHERE r.usuario.id = :usuarioId
-          AND r.estado = 'ACTIVA'
+          AND r.estado IN ('PENDIENTE_ACTIVACION', 'ACTIVA')
           AND r.fechaReserva = :fecha
         """)
     boolean existeReservaActivaEnFecha(Integer usuarioId, LocalDate fecha);
@@ -125,7 +133,7 @@ public interface ReservaRepository extends JpaRepository<Reserva, Integer> {
     @Query("""
         SELECT COUNT(r) > 0 FROM Reserva r
         WHERE r.usuario.id = :usuarioId
-          AND r.estado = 'ACTIVA'
+          AND r.estado IN ('PENDIENTE_ACTIVACION', 'ACTIVA')
           AND r.fechaInicio < :fin
           AND r.fechaFin    > :inicio
         """)

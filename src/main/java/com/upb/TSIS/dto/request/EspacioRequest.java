@@ -7,6 +7,7 @@ import lombok.Data;
 public class EspacioRequest {
     private Integer zonaId;
     private String codigo;
+    private String codigoQr;
     private TipoVehiculo tipoVehiculo;
     private Object coordenadas;
 }

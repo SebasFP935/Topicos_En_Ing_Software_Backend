@@ -17,5 +17,5 @@ public interface IReservaService {
     ReservaResponse checkOut(String codigoQr, Integer operadorId);
     void procesarReservasVencidas();      // scheduler: marca NO_SHOW y libera espacios
     void marcarEspaciosReservados();    // scheduler: activa RESERVADO cuando llega la franja
-    ScanResponse escanear(String token);
+    ScanResponse escanear(String codigoQrEspacio, Integer usuarioId);
 }

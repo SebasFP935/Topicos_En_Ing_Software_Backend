@@ -111,8 +111,11 @@ public class ReservaController {
      * Se activa cuando el usuario escanea el QR con su cámara.
      * Determina automáticamente si es check-in o check-out.
      */
-    @GetMapping("/escanear/{token}")
-    public ResponseEntity<ScanResponse> escanear(@PathVariable String token) {
-        return ResponseEntity.ok(reservaService.escanear(token));
+    @GetMapping("/escanear/{codigoQr}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ScanResponse> escanear(
+            @PathVariable String codigoQr,
+            @AuthenticationPrincipal Usuario usuario) {
+        return ResponseEntity.ok(reservaService.escanear(codigoQr, usuario.getId()));
     }
 }

@@ -1,6 +1,7 @@
 package com.upb.TSIS.service.impl;
 
 import com.upb.TSIS.dto.request.EspacioRequest;
+import com.upb.TSIS.dto.response.EspacioQrResponse;
 import com.upb.TSIS.dto.response.EspacioResponse;
 import com.upb.TSIS.entity.Espacio;
 import com.upb.TSIS.entity.Zona;
@@ -33,6 +34,7 @@ public class EspacioServiceImpl implements IEspacioService {
         Espacio espacio = Espacio.builder()
                 .zona(zona)
                 .codigo(request.getCodigo())
+                .codigoQr(normalizarCodigoQr(request.getCodigoQr()))
                 .tipoVehiculo(request.getTipoVehiculo() != null ? request.getTipoVehiculo() : TipoVehiculo.AUTO)
                 .coordenadas(request.getCoordenadas())
                 .build();
@@ -71,8 +73,23 @@ public class EspacioServiceImpl implements IEspacioService {
 
     @Override
     @Transactional
+    public EspacioQrResponse regenerarCodigoQr(Integer id) {
+        Espacio espacio = buscarOFallar(id);
+        espacio.regenerarCodigoQr();
+        return toQrResponse(espacioRepository.save(espacio));
+    }
+
+    @Override
+    @Transactional
     public void eliminar(Integer id) {
         espacioRepository.delete(buscarOFallar(id));
+    }
+
+    private String normalizarCodigoQr(String codigoQr) {
+        if (codigoQr == null || codigoQr.isBlank()) {
+            return null;
+        }
+        return codigoQr.trim();
     }
 
     private Espacio buscarOFallar(Integer id) {
@@ -89,6 +106,14 @@ public class EspacioServiceImpl implements IEspacioService {
                 .coordenadas(e.getCoordenadas())
                 .zonaId(e.getZona().getId())
                 .zonaNombre(e.getZona().getNombre())
+                .build();
+    }
+
+    private EspacioQrResponse toQrResponse(Espacio e) {
+        return EspacioQrResponse.builder()
+                .id(e.getId())
+                .codigo(e.getCodigo())
+                .codigoQr(e.getCodigoQr())
                 .build();
     }
 }

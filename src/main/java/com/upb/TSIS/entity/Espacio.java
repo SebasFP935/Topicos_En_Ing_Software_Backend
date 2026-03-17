@@ -10,6 +10,7 @@ import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Entity
 @Table(name = "espacios")
@@ -29,6 +30,11 @@ public class Espacio {
 
     @Column(nullable = false, unique = true, length = 20)
     private String codigo;
+
+    @JsonIgnore
+    @Column(name = "codigo_qr", nullable = false, unique = true, length = 36)
+    @Builder.Default
+    private String codigoQr = UUID.randomUUID().toString();
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, columnDefinition = "VARCHAR(20) CHECK (estado IN ('DISPONIBLE','RESERVADO','OCUPADO','BLOQUEADO','MANTENIMIENTO'))")
@@ -58,5 +64,12 @@ public class Espacio {
     @PrePersist
     protected void onCreate() {
         this.creadoEn = LocalDateTime.now();
+        if (this.codigoQr == null) {
+            this.codigoQr = UUID.randomUUID().toString();
+        }
+    }
+
+    public void regenerarCodigoQr() {
+        this.codigoQr = UUID.randomUUID().toString();
     }
 }

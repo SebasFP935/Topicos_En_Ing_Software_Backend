@@ -1,6 +1,7 @@
 package com.upb.TSIS.controller;
 
 import com.upb.TSIS.dto.request.EspacioRequest;
+import com.upb.TSIS.dto.response.EspacioQrResponse;
 import com.upb.TSIS.dto.response.EspacioResponse;
 import com.upb.TSIS.entity.enums.EstadoEspacio;
 import com.upb.TSIS.entity.enums.TipoVehiculo;
@@ -61,6 +62,12 @@ public class EspacioController {
             @PathVariable Integer id,
             @RequestParam EstadoEspacio estado) {
         return ResponseEntity.ok(espacioService.actualizarEstado(id, estado));
+    }
+
+    @PatchMapping("/{id}/codigo-qr/regenerar")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<EspacioQrResponse> regenerarCodigoQr(@PathVariable Integer id) {
+        return ResponseEntity.ok(espacioService.regenerarCodigoQr(id));
     }
 
     // DELETE /api/espacios/{id}  → solo ADMIN
