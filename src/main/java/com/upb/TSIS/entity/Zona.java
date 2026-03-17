@@ -1,4 +1,4 @@
-package com.upb.TSIS.entity;
+﻿package com.upb.TSIS.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.upb.TSIS.entity.enums.TipoZona;
@@ -43,7 +43,7 @@ public class Zona {
 
     /**
      * Elementos decorativos del plano dibujados por el admin:
-     * paredes y pasillos como rectángulos.
+     * paredes y pasillos como rectÃ¡ngulos.
      *
      * Formato guardado en JSONB:
      * [
@@ -51,16 +51,19 @@ public class Zona {
      *   { "type": "road", "x": 50,  "y": 200, "w": 900, "h": 60 }
      * ]
      *
-     * Null si la zona aún no tiene mapa configurado.
+     * Null si la zona aÃºn no tiene mapa configurado.
      */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private Object plano;
 
+    @Column(name = "plano_imagen", columnDefinition = "text")
+    private String planoImagen;
+
     /**
-     * Dimensiones del canvas donde se dibujó el plano.
+     * Dimensiones del canvas donde se dibujÃ³ el plano.
      * El frontend usa estos valores para escalar correctamente
-     * el mapa en pantallas de distinto tamaño.
+     * el mapa en pantallas de distinto tamaÃ±o.
      */
     @Column(name = "mapa_ancho")
     @Builder.Default

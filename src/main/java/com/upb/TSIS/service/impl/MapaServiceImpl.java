@@ -1,4 +1,4 @@
-package com.upb.TSIS.service.impl;
+﻿package com.upb.TSIS.service.impl;
 
 import com.upb.TSIS.dto.request.MapaRequest;
 import com.upb.TSIS.dto.response.MapaResponse;
@@ -23,9 +23,9 @@ public class MapaServiceImpl {
     private final ZonaRepository    zonaRepository;
     private final EspacioRepository espacioRepository;
 
-    // ─────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // GET /api/zonas/{id}/mapa
-    // ─────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     /**
      * Devuelve el plano completo de la zona:
      * - Elementos decorativos (paredes, pasillos)
@@ -39,8 +39,11 @@ public class MapaServiceImpl {
         Zona zona = findZona(zonaId);
 
         List<MapaResponse.PlanoElementoDto> planoDto = parsePlano(zona.getPlano());
-        List<MapaResponse.EspacioMapaDto>   espaciosDto = zona.getEspacios().stream()
+        // Importante: leer desde repository evita devolver colecciones
+        // stale en la misma transaccion justo despues de guardar/eliminar.
+        List<MapaResponse.EspacioMapaDto>   espaciosDto = espacioRepository.findByZona_Id(zonaId).stream()
                 .map(this::toEspacioDto)
+                .filter(this::tieneCoordenadasValidas)
                 .toList();
 
         return MapaResponse.builder()
@@ -48,27 +51,28 @@ public class MapaServiceImpl {
                 .zonaNombre(zona.getNombre())
                 .mapaAncho(zona.getMapaAncho())
                 .mapaAlto(zona.getMapaAlto())
+                .planoImagen(zona.getPlanoImagen())
                 .tieneMapa(zona.getPlano() != null || !espaciosDto.isEmpty())
                 .plano(planoDto)
                 .espacios(espaciosDto)
                 .build();
     }
 
-    // ─────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // PUT /api/zonas/{id}/mapa
-    // ─────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     /**
      * El admin guarda el estado completo del editor:
      *
      * 1. Actualiza las dimensiones del canvas en la zona.
      * 2. Reemplaza el plano (paredes y pasillos) de la zona.
      * 3. Para cada espacio en el request:
-     *    - Si tiene id → actualiza coordenadas del espacio existente.
-     *    - Si no tiene id → crea un espacio nuevo en la BD.
-     * 4. Elimina espacios que ya no están en el mapa (fueron borrados
+     *    - Si tiene id â†’ actualiza coordenadas del espacio existente.
+     *    - Si no tiene id â†’ crea un espacio nuevo en la BD.
+     * 4. Elimina espacios que ya no estÃ¡n en el mapa (fueron borrados
      *    por el admin en el editor).
      *
-     * Todo en una sola transacción.
+     * Todo en una sola transacciÃ³n.
      */
     @Transactional
     public MapaResponse guardarMapa(Integer zonaId, MapaRequest req) {
@@ -77,8 +81,9 @@ public class MapaServiceImpl {
         // 1. Canvas dimensions
         zona.setMapaAncho(req.getMapaAncho());
         zona.setMapaAlto(req.getMapaAlto());
+        zona.setPlanoImagen(normalizeImage(req.getPlanoImagen()));
 
-        // 2. Plano (paredes y pasillos) — lista de Maps que Hibernate
+        // 2. Plano (paredes y pasillos) â€” lista de Maps que Hibernate
         //    serializa directamente a JSONB
         zona.setPlano(req.getPlano().stream()
                 .map(e -> {
@@ -94,32 +99,64 @@ public class MapaServiceImpl {
 
         // 3. Espacios: separar nuevos de existentes
         Set<Integer> idsEnRequest = new HashSet<>();
+        Set<String> codigosEnRequest = new HashSet<>();
 
         for (MapaRequest.EspacioMapaDto dto : req.getEspacios()) {
 
             Map<String, Object> coords = buildCoords(dto);
 
             if (dto.getId() != null) {
-                // Espacio existente → solo actualizar coordenadas
+                // Espacio existente â†’ solo actualizar coordenadas
                 Espacio esp = espacioRepository.findById(dto.getId())
                         .orElseThrow(() -> new RecursoNoEncontradoException(
                                 "Espacio no encontrado: " + dto.getId()));
                 validarPertenencia(esp, zonaId);
                 esp.setCoordenadas(coords);
+                if (dto.getTipoVehiculo() != null && !dto.getTipoVehiculo().isBlank()) {
+                    esp.setTipoVehiculo(parseTipo(dto.getTipoVehiculo()));
+                }
                 espacioRepository.save(esp);
                 idsEnRequest.add(esp.getId());
+                codigosEnRequest.add(esp.getCodigo().trim().toUpperCase());
 
             } else {
-                // Espacio nuevo → crear
+                // Espacio nuevo â†’ crear
                 if (dto.getCodigo() == null || dto.getCodigo().isBlank())
-                    throw new ReglaNegocioException("El código es obligatorio para espacios nuevos.");
+                    throw new ReglaNegocioException("El cÃ³digo es obligatorio para espacios nuevos.");
 
                 if (dto.getTipoVehiculo() == null)
-                    throw new ReglaNegocioException("El tipo de vehículo es obligatorio para espacios nuevos.");
+                    throw new ReglaNegocioException("El tipo de vehÃ­culo es obligatorio para espacios nuevos.");
+
+                String codigoNormalizado = dto.getCodigo().trim().toUpperCase();
+                if (!codigosEnRequest.add(codigoNormalizado)) {
+                    throw new ReglaNegocioException("El cÃ³digo '" + codigoNormalizado + "' estÃ¡ repetido en el mapa.");
+                }
+
+                // Si llega sin id pero ya existe en la misma zona, actualizamos para
+                // soportar payloads donde el frontend no enviÃ³ el id persistido.
+                Optional<Espacio> existenteMismaZona =
+                        espacioRepository.findByZona_IdAndCodigoIgnoreCase(zonaId, codigoNormalizado);
+
+                if (existenteMismaZona.isPresent()) {
+                    Espacio esp = existenteMismaZona.get();
+                    esp.setCoordenadas(coords);
+                    esp.setTipoVehiculo(parseTipo(dto.getTipoVehiculo()));
+                    espacioRepository.save(esp);
+                    idsEnRequest.add(esp.getId());
+                    continue;
+                }
+
+                // El cÃ³digo es Ãºnico global en la tabla espacios.
+                Optional<Espacio> existenteGlobal =
+                        espacioRepository.findByCodigoIgnoreCase(codigoNormalizado);
+                if (existenteGlobal.isPresent()) {
+                    throw new ReglaNegocioException(
+                            "El cÃ³digo '" + codigoNormalizado + "' ya existe en otra zona. Usa un cÃ³digo distinto.");
+                }
 
                 Espacio nuevo = Espacio.builder()
                         .zona(zona)
-                        .codigo(dto.getCodigo().trim().toUpperCase())
+                        .codigo(codigoNormalizado)
                         .tipoVehiculo(parseTipo(dto.getTipoVehiculo()))
                         .estado(EstadoEspacio.DISPONIBLE)
                         .coordenadas(coords)
@@ -130,7 +167,7 @@ public class MapaServiceImpl {
             }
         }
 
-        // 4. Eliminar espacios que el admin borró del editor
+        // 4. Eliminar espacios que el admin borrÃ³ del editor
         //    Solo eliminamos si NO tienen reservas activas.
         List<Espacio> espaciosActuales = espacioRepository.findByZona_Id(zonaId);
         for (Espacio esp : espaciosActuales) {
@@ -152,12 +189,15 @@ public class MapaServiceImpl {
             }
         }
 
+        // Sincroniza cambios de espacios antes de reconstruir la respuesta.
+        espacioRepository.flush();
+
         return obtenerMapa(zonaId);
     }
 
-    // ─────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Helpers
-    // ─────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private Zona findZona(Integer id) {
         return zonaRepository.findById(id)
@@ -174,15 +214,25 @@ public class MapaServiceImpl {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("x", dto.getX()); m.put("y", dto.getY());
         m.put("w", dto.getW()); m.put("h", dto.getH());
+        m.put("angulo", dto.getAngulo() != null ? dto.getAngulo() : 0d);
         return m;
     }
 
     private TipoVehiculo parseTipo(String tipo) {
         try {
-            return TipoVehiculo.valueOf(tipo.toUpperCase());
+            String normalizado = tipo.toUpperCase().trim();
+            if ("DISCAPACIDAD".equals(normalizado)) normalizado = "DISCAPACITADO";
+            if ("BICICLETA".equals(normalizado)) normalizado = "MOTO";
+            return TipoVehiculo.valueOf(normalizado);
         } catch (IllegalArgumentException e) {
-            throw new ReglaNegocioException("Tipo de vehículo inválido: " + tipo);
+            throw new ReglaNegocioException("Tipo de vehiculo invalido: " + tipo);
         }
+    }
+
+    private String normalizeImage(String imageDataUrl) {
+        if (imageDataUrl == null) return null;
+        String value = imageDataUrl.trim();
+        return value.isEmpty() ? null : value;
     }
 
     /**
@@ -208,13 +258,14 @@ public class MapaServiceImpl {
     }
 
     private MapaResponse.EspacioMapaDto toEspacioDto(Espacio e) {
-        Double x = null, y = null, w = null, h = null;
+        Double x = null, y = null, w = null, h = null, angulo = null;
 
         if (e.getCoordenadas() instanceof Map<?, ?> c) {
             x = num((Map<String,Object>) c, "x");
             y = num((Map<String,Object>) c, "y");
             w = num((Map<String,Object>) c, "w");
             h = num((Map<String,Object>) c, "h");
+            angulo = num((Map<String,Object>) c, "angulo");
         }
 
         return MapaResponse.EspacioMapaDto.builder()
@@ -223,7 +274,13 @@ public class MapaServiceImpl {
                 .tipoVehiculo(e.getTipoVehiculo().name())
                 .estado(e.getEstado().name())
                 .x(x).y(y).w(w).h(h)
+                .angulo(angulo != null ? angulo : 0d)
                 .build();
+    }
+
+    private boolean tieneCoordenadasValidas(MapaResponse.EspacioMapaDto dto) {
+        return dto.getX() != null && dto.getY() != null
+                && dto.getW() != null && dto.getH() != null;
     }
 
     private String str(Map<String, Object> m, String k) {
@@ -236,3 +293,4 @@ public class MapaServiceImpl {
         return null;
     }
 }
+

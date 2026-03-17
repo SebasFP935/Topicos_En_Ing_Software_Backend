@@ -1,6 +1,6 @@
-package com.upb.TSIS.security.config;
+﻿package com.upb.TSIS.security.config;
 
-import tools.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.MediaType;
@@ -27,10 +27,11 @@ public class CustomAccessDeniedHandler implements AccessDeniedHandler {
         Map<String, Object> body = Map.of(
                 "status",  403,
                 "error",   "Acceso denegado",
-                "mensaje", "No tienes permisos para realizar esta acción.",
+                "mensaje", "No tienes permisos para realizar esta acciÃ³n.",
                 "path",    request.getServletPath()
         );
 
         objectMapper.writeValue(response.getOutputStream(), body);
     }
 }
+

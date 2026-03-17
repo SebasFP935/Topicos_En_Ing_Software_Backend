@@ -1,4 +1,4 @@
-package com.upb.TSIS.dto.request;
+﻿package com.upb.TSIS.dto.request;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
@@ -9,32 +9,35 @@ import java.util.List;
 /**
  * Body del endpoint PUT /api/zonas/{id}/mapa
  *
- * El frontend envía todo el estado del editor en una sola llamada:
+ * El frontend envÃ­a todo el estado del editor en una sola llamada:
  *   - Los elementos decorativos del plano (paredes y pasillos)
- *   - Los espacios de parqueo con su posición y tamaño en el canvas
+ *   - Los espacios de parqueo con su posiciÃ³n y tamaÃ±o en el canvas
  *   - Las dimensiones del canvas al momento de guardar
  */
 @Data
 public class MapaRequest {
 
-    /** Ancho del canvas en píxeles al momento de guardar. */
+    /** Ancho del canvas en pÃ­xeles al momento de guardar. */
     @NotNull
     private Integer mapaAncho;
 
-    /** Alto del canvas en píxeles al momento de guardar. */
+    /** Alto del canvas en pÃ­xeles al momento de guardar. */
     @NotNull
     private Integer mapaAlto;
+
+    /** Imagen base del plano en Data URL (opcional). */
+    private String planoImagen;
 
     /**
      * Elementos decorativos: paredes y pasillos.
      * El frontend los dibuja para dar contexto visual al usuario,
-     * pero no tienen lógica de negocio — solo se guardan y se devuelven.
+     * pero no tienen lÃ³gica de negocio â€” solo se guardan y se devuelven.
      */
     @NotNull
     private List<PlanoElementoDto> plano;
 
     /**
-     * Espacios de parqueo con su posición en el canvas.
+     * Espacios de parqueo con su posiciÃ³n en el canvas.
      * Cada elemento referencia un espacio existente por su ID
      * o indica que debe crearse uno nuevo (id == null).
      */
@@ -42,7 +45,7 @@ public class MapaRequest {
     @Valid
     private List<EspacioMapaDto> espacios;
 
-    // ── Inner DTOs ────────────────────────────────────────────────
+    // â”€â”€ Inner DTOs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Data
     public static class PlanoElementoDto {
@@ -64,22 +67,25 @@ public class MapaRequest {
          */
         private Integer id;
 
-        /** Código único del espacio (ej: "A-01"). Requerido si id == null. */
+        /** CÃ³digo Ãºnico del espacio (ej: "A-01"). Requerido si id == null. */
         private String codigo;
 
-        /** Tipo de vehículo. Requerido si id == null. */
+        /** Tipo de vehÃ­culo. Requerido si id == null. */
         private String tipoVehiculo;
 
-        /** Posición X en el canvas (esquina superior izquierda). */
+        /** PosiciÃ³n X en el canvas (esquina superior izquierda). */
         @NotNull private Double x;
 
-        /** Posición Y en el canvas. */
+        /** PosiciÃ³n Y en el canvas. */
         @NotNull private Double y;
 
-        /** Ancho del rectángulo en el canvas. */
+        /** Ancho del rectÃ¡ngulo en el canvas. */
         @NotNull private Double w;
 
-        /** Alto del rectángulo en el canvas. */
+        /** Alto del rectÃ¡ngulo en el canvas. */
         @NotNull private Double h;
+
+        /** Rotacion del espacio en grados (0 = vertical normal). */
+        private Double angulo;
     }
 }
