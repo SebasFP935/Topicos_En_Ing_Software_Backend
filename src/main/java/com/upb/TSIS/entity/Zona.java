@@ -50,8 +50,6 @@ public class Zona {
      *   { "type": "wall", "x": 50,  "y": 40,  "w": 900, "h": 10 },
      *   { "type": "road", "x": 50,  "y": 200, "w": 900, "h": 60 }
      * ]
-     *
-     * Null si la zona aún no tiene mapa configurado.
      */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
@@ -59,8 +57,6 @@ public class Zona {
 
     /**
      * Dimensiones del canvas donde se dibujó el plano.
-     * El frontend usa estos valores para escalar correctamente
-     * el mapa en pantallas de distinto tamaño.
      */
     @Column(name = "mapa_ancho")
     @Builder.Default
@@ -69,6 +65,17 @@ public class Zona {
     @Column(name = "mapa_alto")
     @Builder.Default
     private Integer mapaAlto = 700;
+
+    /**
+     * Imagen de fondo del plano del parqueo, almacenada como data URL base64.
+     * Ejemplo: "data:image/png;base64,iVBORw0KGgo..."
+     *
+     * El frontend la renderiza como <img> debajo del canvas de espacios.
+     * El operador la sube mediante POST /api/operador/zonas/{id}/imagen-fondo.
+     * Null si no se ha configurado imagen de fondo.
+     */
+    @Column(name = "imagen_fondo", columnDefinition = "TEXT")
+    private String imagenFondo;
 
     @Column(name = "creado_en", updatable = false)
     private LocalDateTime creadoEn;

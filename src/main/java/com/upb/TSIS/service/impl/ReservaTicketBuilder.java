@@ -1,21 +1,12 @@
-// src/main/java/com/upb/TSIS/service/impl/ReservaTicketBuilder.java
 package com.upb.TSIS.service.impl;
 
-import com.google.zxing.BarcodeFormat;
-import com.google.zxing.EncodeHintType;
-import com.google.zxing.client.j2se.MatrixToImageConfig;
-import com.google.zxing.client.j2se.MatrixToImageWriter;
-import com.google.zxing.common.BitMatrix;
-import com.google.zxing.qrcode.QRCodeWriter;
-import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
 import com.upb.TSIS.entity.Reserva;
+import com.upb.TSIS.service.IQrImageService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.io.ByteArrayOutputStream;
 import java.time.format.DateTimeFormatter;
-import java.util.Base64;
-import java.util.Map;
 
 /**
  * Genera el HTML del ticket de reserva, listo para adjuntar como archivo
@@ -23,10 +14,14 @@ import java.util.Map;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class ReservaTicketBuilder {
 
     private static final DateTimeFormatter FECHA_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final DateTimeFormatter HORA_FMT  = DateTimeFormatter.ofPattern("HH:mm");
+
+    // Inyectado — ya no duplicamos la lógica de generación QR
+    private final IQrImageService qrImageService;
 
     /**
      * Genera el HTML completo del ticket como String.
@@ -34,14 +29,16 @@ public class ReservaTicketBuilder {
      * @param qrUrl   URL firmada que irá codificada en el QR
      */
     public String buildHtml(Reserva reserva, String qrUrl) {
-        String qrBase64 = generarQrBase64(qrUrl);
-        String nombre   = reserva.getUsuario().getNombre() + " " + reserva.getUsuario().getApellido();
-        String espacio  = reserva.getEspacio().getCodigo();
-        String zona     = reserva.getEspacio().getZona().getNombre();
-        String sede     = reserva.getEspacio().getZona().getSede().getNombre();
-        String fecha    = reserva.getFechaReserva().format(FECHA_FMT);
-        String horaIni  = reserva.getFechaInicio().format(HORA_FMT);
-        String horaFin  = reserva.getFechaFin().format(HORA_FMT);
+        // Delegamos la generación QR al servicio compartido
+        String qrBase64 = qrImageService.generarBase64(qrUrl);
+
+        String nombre    = reserva.getUsuario().getNombre() + " " + reserva.getUsuario().getApellido();
+        String espacio   = reserva.getEspacio().getCodigo();
+        String zona      = reserva.getEspacio().getZona().getNombre();
+        String sede      = reserva.getEspacio().getZona().getSede().getNombre();
+        String fecha     = reserva.getFechaReserva().format(FECHA_FMT);
+        String horaIni   = reserva.getFechaInicio().format(HORA_FMT);
+        String horaFin   = reserva.getFechaFin().format(HORA_FMT);
         String reservaId = String.format("RES-%05d", reserva.getId());
 
         return """
@@ -71,7 +68,6 @@ public class ReservaTicketBuilder {
                   max-width: 520px;
                 }
 
-                /* ── Header sobre el ticket ── */
                 .header {
                   text-align: center;
                   margin-bottom: 24px;
@@ -81,70 +77,60 @@ public class ReservaTicketBuilder {
                   font-size: 11px;
                   letter-spacing: 4px;
                   text-transform: uppercase;
-                  color: #00C9A7;
-                  margin-bottom: 6px;
+                  color: #4a5068;
+                  margin-bottom: 8px;
                 }
                 .header-title {
                   font-size: 22px;
                   font-weight: 700;
-                  color: #ffffff;
-                  letter-spacing: -0.5px;
+                  color: #e8ebf5;
                 }
 
-                /* ── Ticket principal ── */
                 .ticket {
-                  background: #13151f;
-                  border: 1px solid #1e2130;
+                  background: #12141f;
                   border-radius: 20px;
                   overflow: hidden;
-                  box-shadow: 0 0 60px rgba(0, 201, 167, 0.08), 0 20px 60px rgba(0,0,0,0.5);
+                  border: 1px solid #1e2130;
+                  box-shadow: 0 24px 80px rgba(0,0,0,.5);
                 }
 
-                /* Banda superior de color */
                 .ticket-band {
-                  background: linear-gradient(135deg, #00C9A7 0%%, #0093E9 100%%);
-                  padding: 22px 32px;
+                  background: linear-gradient(135deg, #00C9A7, #0094ff);
+                  padding: 20px 32px;
                   display: flex;
                   justify-content: space-between;
                   align-items: center;
                 }
                 .ticket-band-label {
-                  font-family: 'DM Mono', monospace;
                   font-size: 10px;
-                  letter-spacing: 3px;
+                  letter-spacing: 2px;
                   text-transform: uppercase;
-                  color: rgba(255,255,255,0.7);
+                  color: rgba(255,255,255,.7);
                   margin-bottom: 4px;
                 }
                 .ticket-band-value {
                   font-size: 28px;
                   font-weight: 700;
-                  color: #ffffff;
-                  letter-spacing: -1px;
+                  color: #fff;
+                  letter-spacing: 1px;
                 }
                 .ticket-band-id {
                   font-family: 'DM Mono', monospace;
-                  font-size: 12px;
-                  color: rgba(255,255,255,0.8);
-                  background: rgba(0,0,0,0.2);
-                  padding: 6px 12px;
-                  border-radius: 8px;
-                  letter-spacing: 1px;
+                  font-size: 13px;
+                  color: rgba(255,255,255,.8);
+                  letter-spacing: 2px;
                 }
 
-                /* Cuerpo del ticket */
                 .ticket-body {
                   padding: 28px 32px;
                 }
 
-                /* Grid de datos */
                 .data-grid {
                   display: grid;
                   grid-template-columns: 1fr 1fr;
                   gap: 20px;
                   margin-bottom: 24px;
                 }
-                .data-item {}
                 .data-label {
                   font-family: 'DM Mono', monospace;
                   font-size: 9px;
@@ -158,15 +144,11 @@ public class ReservaTicketBuilder {
                   font-weight: 600;
                   color: #c8cde0;
                 }
-                .data-value.accent {
-                  color: #00C9A7;
-                }
+                .data-value.accent { color: #00C9A7; }
 
-                /* Línea de separación perforada */
                 .perforated {
                   position: relative;
                   margin: 24px 0;
-                  border: none;
                 }
                 .perforated::before {
                   content: '';
@@ -186,7 +168,6 @@ public class ReservaTicketBuilder {
                 .perforated .circle-left  { left: -44px; }
                 .perforated .circle-right { right: -44px; }
 
-                /* Sección QR */
                 .qr-section {
                   display: flex;
                   flex-direction: column;
@@ -212,11 +193,8 @@ public class ReservaTicketBuilder {
                   line-height: 1.6;
                   max-width: 280px;
                 }
-                .qr-instructions strong {
-                  color: #00C9A7;
-                }
+                .qr-instructions strong { color: #00C9A7; }
 
-                /* Footer del ticket */
                 .ticket-footer {
                   background: #0e1018;
                   border-top: 1px solid #1e2130;
@@ -254,7 +232,6 @@ public class ReservaTicketBuilder {
 
                 <div class="ticket">
 
-                  <!-- Banda superior -->
                   <div class="ticket-band">
                     <div>
                       <div class="ticket-band-label">Espacio asignado</div>
@@ -264,7 +241,6 @@ public class ReservaTicketBuilder {
                     <div class="ticket-band-id">%s</div>
                   </div>
 
-                  <!-- Cuerpo -->
                   <div class="ticket-body">
 
                     <div class="data-grid">
@@ -294,13 +270,11 @@ public class ReservaTicketBuilder {
                       </div>
                     </div>
 
-                    <!-- Separador perforado -->
                     <div class="perforated">
                       <div class="circle-left"></div>
                       <div class="circle-right"></div>
                     </div>
 
-                    <!-- QR -->
                     <div class="qr-section">
                       <div class="qr-frame">
                         <img src="data:image/png;base64,%s" alt="Código QR de tu reserva"/>
@@ -313,7 +287,6 @@ public class ReservaTicketBuilder {
 
                   </div>
 
-                  <!-- Footer -->
                   <div class="ticket-footer">
                     <span class="ticket-footer-text">UPB · PARKING SYSTEM</span>
                     <span class="status-badge">✓ CONFIRMADA</span>
@@ -325,36 +298,10 @@ public class ReservaTicketBuilder {
             </body>
             </html>
             """.formatted(
-                espacio, zona, sede, reservaId,   // ticket-band
-                nombre, fecha, horaIni, horaFin,  // data-grid
+                espacio, zona, sede, reservaId,
+                nombre, fecha, horaIni, horaFin,
                 reserva.getTipoVehiculo().name(), sede,
-                qrBase64                          // QR
+                qrBase64
         );
-    }
-
-    // ── QR Generator ─────────────────────────────────────────────
-
-    private String generarQrBase64(String contenido) {
-        try {
-            QRCodeWriter writer = new QRCodeWriter();
-            Map<EncodeHintType, Object> hints = Map.of(
-                    EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.M,
-                    EncodeHintType.MARGIN, 1
-            );
-
-            BitMatrix matrix = writer.encode(contenido, BarcodeFormat.QR_CODE, 320, 320, hints);
-
-            // QR en blanco/negro puro: fondo blanco (#FFFFFF), módulos negros (#000000)
-            MatrixToImageConfig config = new MatrixToImageConfig(0xFF000000, 0xFFFFFFFF);
-
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            MatrixToImageWriter.writeToStream(matrix, "PNG", baos, config);
-
-            return Base64.getEncoder().encodeToString(baos.toByteArray());
-
-        } catch (Exception ex) {
-            log.error("Error generando QR para URL: {}", contenido, ex);
-            throw new IllegalStateException("No se pudo generar el código QR", ex);
-        }
     }
 }
