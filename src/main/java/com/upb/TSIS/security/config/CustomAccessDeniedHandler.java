@@ -1,4 +1,4 @@
-﻿package com.upb.TSIS.security.config;
+package com.upb.TSIS.security.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;

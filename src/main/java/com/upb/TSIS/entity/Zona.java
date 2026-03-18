@@ -1,4 +1,4 @@
-﻿package com.upb.TSIS.entity;
+package com.upb.TSIS.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.upb.TSIS.entity.enums.TipoZona;
@@ -61,7 +61,7 @@ public class Zona {
     private String planoImagen;
 
     /**
-     * Dimensiones del canvas donde se dibujÃ³ el plano.
+     * Dimensiones del canvas donde se dibuja el plano.
      * El frontend usa estos valores para escalar correctamente
      * el mapa en pantallas de distinto tamaÃ±o.
      */

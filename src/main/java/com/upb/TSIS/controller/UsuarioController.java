@@ -1,5 +1,7 @@
 package com.upb.TSIS.controller;
 
+import com.upb.TSIS.dto.request.AdminEditUsuarioRequest;
+import com.upb.TSIS.dto.request.CambiarRolRequest;
 import com.upb.TSIS.dto.request.UsuarioRequest;
 import com.upb.TSIS.dto.response.UsuarioResponse;
 import com.upb.TSIS.entity.enums.RolUsuario;
@@ -65,5 +67,37 @@ public class UsuarioController {
     public ResponseEntity<Void> desactivar(@PathVariable Integer id) {
         usuarioService.desactivar(id);
         return ResponseEntity.noContent().build();
+    }
+
+    // GET /api/usuarios/gestion
+// Lista todos los no-admins (USUARIO + OPERADOR) para el dashboard
+    @GetMapping("/gestion")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<UsuarioResponse>> listarParaDashboard(
+            @RequestParam(required = false) String q) {
+        List<UsuarioResponse> resultado = (q != null && !q.isBlank())
+                ? usuarioService.buscarNoAdmins(q)
+                : usuarioService.listarNoAdmins();
+        return ResponseEntity.ok(resultado);
+    }
+
+    // PATCH /api/usuarios/{id}
+// Edición parcial de atributos (sin contraseña) — solo sobre no-admins
+    @PatchMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<UsuarioResponse> actualizarPorAdmin(
+            @PathVariable Integer id,
+            @Valid @RequestBody AdminEditUsuarioRequest request) {
+        return ResponseEntity.ok(usuarioService.actualizarPorAdmin(id, request));
+    }
+
+    // PATCH /api/usuarios/{id}/rol
+// Cambio de rol dedicado: USUARIO ↔ OPERADOR
+    @PatchMapping("/{id}/rol")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<UsuarioResponse> cambiarRol(
+            @PathVariable Integer id,
+            @Valid @RequestBody CambiarRolRequest request) {
+        return ResponseEntity.ok(usuarioService.cambiarRol(id, request));
     }
 }

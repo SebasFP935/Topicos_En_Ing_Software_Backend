@@ -1,4 +1,4 @@
-﻿package com.upb.TSIS.security.config;
+package com.upb.TSIS.security.config;
 
 import com.upb.TSIS.repository.UsuarioRepository;
 import com.upb.TSIS.security.filter.JwtAuthenticationFilter;
