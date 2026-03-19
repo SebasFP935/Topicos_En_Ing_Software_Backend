@@ -7,7 +7,6 @@ import lombok.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Entity
 @Table(name = "reservas")
@@ -44,9 +43,6 @@ public class Reserva {
     private EstadoReserva estado = EstadoReserva.ACTIVA;
 
     /** UUID único para validar acceso vía lector QR o barrera */
-    @Column(name = "codigo_qr", nullable = false, unique = true, updatable = false, length = 36)
-    @Builder.Default
-    private String codigoQr = UUID.randomUUID().toString();
 
     @Column(name = "check_in_time")
     private LocalDateTime checkInTime;
@@ -69,9 +65,6 @@ public class Reserva {
     protected void onCreate() {
         this.creadoEn      = LocalDateTime.now();
         this.actualizadoEn = LocalDateTime.now();
-        if (this.codigoQr == null) {
-            this.codigoQr = UUID.randomUUID().toString();
-        }
     }
 
     @PreUpdate

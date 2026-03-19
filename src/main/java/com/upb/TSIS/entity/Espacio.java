@@ -10,6 +10,7 @@ import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Entity
 @Table(name = "espacios")
@@ -29,6 +30,13 @@ public class Espacio {
 
     @Column(nullable = false, unique = true, length = 20)
     private String codigo;
+
+    /**
+     * Código QR físico único de este espacio.
+     * Este valor se imprime/pega en el parqueo y NO debe exponerse en el flujo normal del usuario.
+     */
+    @Column(name = "codigo_qr_fisico", unique = true, length = 36)
+    private String codigoQrFisico;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, columnDefinition = "VARCHAR(20) CHECK (estado IN ('DISPONIBLE','RESERVADO','OCUPADO','BLOQUEADO','MANTENIMIENTO'))")
@@ -58,5 +66,8 @@ public class Espacio {
     @PrePersist
     protected void onCreate() {
         this.creadoEn = LocalDateTime.now();
+        if (this.codigoQrFisico == null || this.codigoQrFisico.isBlank()) {
+            this.codigoQrFisico = UUID.randomUUID().toString();
+        }
     }
 }

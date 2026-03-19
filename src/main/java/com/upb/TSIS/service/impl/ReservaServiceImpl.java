@@ -1,10 +1,7 @@
 package com.upb.TSIS.service.impl;
 
-import com.upb.TSIS.dto.QrPayload;
 import com.upb.TSIS.dto.response.ScanResponse;
 import com.upb.TSIS.entity.enums.*;
-import com.upb.TSIS.exception.TokenQrInvalidoException;
-import com.upb.TSIS.service.IQrTokenService;
 import lombok.extern.slf4j.Slf4j;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.upb.TSIS.dto.request.ReservaRequest;
@@ -22,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
 
@@ -39,7 +37,6 @@ public class ReservaServiceImpl implements IReservaService {
     private final EntidadRepository        entidadRepository;
     private final INotificacionService     notificacionService;
     private final ObjectMapper             objectMapper = new ObjectMapper();
-    private final IQrTokenService qrTokenService;
     private final PenalizacionRepository penalizacionRepository;
 
     @Override
@@ -139,14 +136,6 @@ public class ReservaServiceImpl implements IReservaService {
 
     @Override
     @Transactional(readOnly = true)
-    public ReservaResponse obtenerPorQr(String codigoQr) {
-        return reservaRepository.findByCodigoQr(codigoQr)
-                .map(this::toResponse)
-                .orElseThrow(() -> new RecursoNoEncontradoException("Reserva no encontrada para QR: " + codigoQr));
-    }
-
-    @Override
-    @Transactional(readOnly = true)
     public List<ReservaResponse> listarPorUsuario(Integer usuarioId) {
         return reservaRepository.findByUsuario_Id(usuarioId)
                 .stream().map(this::toResponse).toList();
@@ -165,14 +154,13 @@ public class ReservaServiceImpl implements IReservaService {
         Reserva reserva = buscarReserva(id);
 
         if (!reserva.getUsuario().getId().equals(usuarioId)) {
-            throw new ReglaNegocioException("Solo el dueÃ±o puede cancelar su reserva.");
+            throw new ReglaNegocioException("Solo el dueno puede cancelar su reserva.");
         }
         if (reserva.getEstado() != EstadoReserva.ACTIVA) {
             throw new ReglaNegocioException("Solo se pueden cancelar reservas activas.");
         }
 
         reserva.setEstado(EstadoReserva.CANCELADA);
-        // Liberar solo si el espacio estaba marcado por esta reserva (puede que aÃºn no haya llegado la hora)
         liberarEspacio(reserva.getEspacio());
         Reserva guardada = reservaRepository.save(reserva);
 
@@ -181,75 +169,20 @@ public class ReservaServiceImpl implements IReservaService {
     }
 
     @Override
-    @Transactional
-    public ReservaResponse checkIn(String codigoQr, Integer operadorId) {
-        Reserva reserva = reservaRepository.findByCodigoQr(codigoQr)
-                .orElseThrow(() -> new RecursoNoEncontradoException("QR invÃ¡lido: " + codigoQr));
-
-        if (reserva.getEstado() != EstadoReserva.ACTIVA) {
-            throw new ReglaNegocioException("La reserva no estÃ¡ activa para hacer check-in.");
-        }
-
-        // Validar gracia: el check-in no puede ser despuÃ©s de inicio + minutos de gracia
-        int gracia = obtenerReglaNumerica(TipoRegla.HORARIO, "minutos_gracia", 15);
-        LocalDateTime limiteEntrada = reserva.getFechaInicio().plusMinutes(gracia);
-        if (LocalDateTime.now().isAfter(limiteEntrada)) {
-            reserva.setEstado(EstadoReserva.NO_SHOW);
-            liberarEspacio(reserva.getEspacio());
-            reservaRepository.save(reserva);
-            throw new ReglaNegocioException("Tiempo de gracia superado. La reserva fue marcada como NO_SHOW.");
-        }
-
-        reserva.setCheckInTime(LocalDateTime.now());
-        // Check-in fÃ­sico: ahora sÃ­ marcamos OCUPADO
-        reserva.getEspacio().setEstado(EstadoEspacio.OCUPADO);
-        espacioRepository.save(reserva.getEspacio());
-
-        return toResponse(reservaRepository.save(reserva));
-    }
-
-    @Override
-    @Transactional
-    public ReservaResponse checkOut(String codigoQr, Integer operadorId) {
-        Reserva reserva = reservaRepository.findByCodigoQr(codigoQr)
-                .orElseThrow(() -> new RecursoNoEncontradoException("QR invÃ¡lido: " + codigoQr));
-
-        if (reserva.getEstado() != EstadoReserva.ACTIVA) {
-            throw new ReglaNegocioException("La reserva no estÃ¡ activa para hacer check-out.");
-        }
-
-        reserva.setCheckOutTime(LocalDateTime.now());
-        reserva.setEstado(EstadoReserva.COMPLETADA);
-        liberarEspacio(reserva.getEspacio());
-
-        return toResponse(reservaRepository.save(reserva));
-    }
-
-    // â”€â”€ Schedulers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-    /**
-     * Reemplaza expirarReservasPasadas().
-     * Separa los dos casos: no-show (sin penalizaciÃ³n) y checkout tardÃ­o (con penalizaciÃ³n).
-     */
-    @Override
-    @Scheduled(fixedDelay = 60_000) // cada minuto
+    @Scheduled(fixedDelay = 60_000)
     @Transactional
     public void procesarReservasVencidas() {
         LocalDateTime ahora = LocalDateTime.now();
 
-        // â”€â”€ Caso 1: NO_SHOW â€” sin check-in, ventana de entrada expirÃ³ â”€
-        // Sin penalizaciÃ³n para el usuario.
         LocalDateTime limiteEntrada = ahora.minusMinutes(CHECKIN_VENTANA_DESPUES_MIN);
         List<Reserva> noShows = reservaRepository.findActivasParaNoShow(limiteEntrada);
         for (Reserva r : noShows) {
             r.setEstado(EstadoReserva.NO_SHOW);
             liberarEspacio(r.getEspacio());
             reservaRepository.save(r);
-            log.info("NO_SHOW automÃ¡tico â€” reserva {} usuario {}", r.getId(), r.getUsuario().getId());
+            log.info("NO_SHOW automatico - reserva {} usuario {}", r.getId(), r.getUsuario().getId());
         }
 
-        // â”€â”€ Caso 2: Checkout tardÃ­o â€” con check-in, ventana de salida expirÃ³ â”€
-        // Con penalizaciÃ³n escalada.
         LocalDateTime limiteSalida = ahora.minusMinutes(CHECKOUT_VENTANA_EXTRA_MIN);
         List<Reserva> tardias = reservaRepository.findActivasParaCheckoutTardio(limiteSalida);
         for (Reserva r : tardias) {
@@ -258,26 +191,17 @@ public class ReservaServiceImpl implements IReservaService {
             r.setEstado(EstadoReserva.COMPLETADA);
             liberarEspacio(r.getEspacio());
             reservaRepository.save(r);
-            log.warn("Checkout forzado con penalizaciÃ³n â€” reserva {} usuario {}", r.getId(), r.getUsuario().getId());
+            log.warn("Checkout forzado con penalizacion - reserva {} usuario {}", r.getId(), r.getUsuario().getId());
         }
     }
 
-    /**
-     * NUEVO SCHEDULER â€” Marca visualmente el espacio como RESERVADO
-     * cuando la franja de la reserva comienza.
-     *
-     * Este scheduler es SOLO para el estado visual del mapa en tiempo real.
-     * NO afecta la lÃ³gica de disponibilidad, que se basa en la consulta de
-     * solapamiento de reservas (ver findDisponibles en EspacioRepository).
-     */
-    @Scheduled(fixedDelay = 60_000) // cada minuto
+    @Override
+    @Scheduled(fixedDelay = 60_000)
     @Transactional
     public void marcarEspaciosReservados() {
         List<Reserva> enCurso = reservaRepository.findReservasActivasEnCurso(LocalDateTime.now());
         for (Reserva r : enCurso) {
             Espacio e = r.getEspacio();
-            // Solo marcar RESERVADO si el espacio estÃ¡ DISPONIBLE fÃ­sicamente
-            // (no tocar OCUPADO, BLOQUEADO ni MANTENIMIENTO)
             if (e.getEstado() == EstadoEspacio.DISPONIBLE) {
                 e.setEstado(EstadoEspacio.RESERVADO);
                 espacioRepository.save(e);
@@ -285,21 +209,111 @@ public class ReservaServiceImpl implements IReservaService {
         }
     }
 
-    // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    @Override
+    @Transactional
+    public ScanResponse escanear(String codigoQrFisicoEspacio, Integer usuarioId) {
+        if (codigoQrFisicoEspacio == null || codigoQrFisicoEspacio.isBlank()) {
+            throw new ReglaNegocioException("Codigo QR invalido.");
+        }
+
+        Usuario usuario = buscarUsuario(usuarioId);
+        Espacio espacio = espacioRepository.findByCodigoQrFisicoIgnoreCase(codigoQrFisicoEspacio.trim())
+                .orElseThrow(() -> new RecursoNoEncontradoException("El QR del espacio no existe."));
+
+        LocalDateTime ahora = LocalDateTime.now();
+        List<Reserva> reservasActivas = reservaRepository.findReservasActivasDeUsuarioEnEspacio(usuarioId, espacio.getId());
+
+        Reserva reservaParaCheckout = reservasActivas.stream()
+                .filter(r -> r.getCheckInTime() != null && r.getCheckOutTime() == null)
+                .reduce((first, second) -> second)
+                .orElse(null);
+
+        if (reservaParaCheckout != null) {
+            LocalDateTime limiteCheckout = reservaParaCheckout.getFechaFin().plusMinutes(CHECKOUT_VENTANA_EXTRA_MIN);
+            if (ahora.isAfter(limiteCheckout)) {
+                aplicarPenalizacion(reservaParaCheckout, TipoPenalizacion.CANCELACION_TARDIA);
+            }
+
+            reservaParaCheckout.setCheckOutTime(ahora);
+            reservaParaCheckout.setEstado(EstadoReserva.COMPLETADA);
+            liberarEspacio(reservaParaCheckout.getEspacio());
+            reservaRepository.save(reservaParaCheckout);
+
+            return ScanResponse.builder()
+                    .accion("CHECK_OUT")
+                    .mensaje("Hasta pronto! Tu salida fue registrada y el espacio quedo liberado.")
+                    .estadoEspacio("DISPONIBLE")
+                    .codigoEspacio(reservaParaCheckout.getEspacio().getCodigo())
+                    .zonaNombre(reservaParaCheckout.getEspacio().getZona().getNombre())
+                    .timestamp(ahora)
+                    .build();
+        }
+
+        Reserva reservaParaCheckin = reservasActivas.stream()
+                .filter(r -> r.getCheckInTime() == null)
+                .filter(r -> {
+                    LocalDateTime inicioVentana = r.getFechaInicio().minusMinutes(CHECKIN_VENTANA_ANTES_MIN);
+                    LocalDateTime finVentana = r.getFechaInicio().plusMinutes(CHECKIN_VENTANA_DESPUES_MIN);
+                    return !ahora.isBefore(inicioVentana) && !ahora.isAfter(finVentana);
+                })
+                .findFirst()
+                .orElse(null);
+
+        if (reservaParaCheckin != null) {
+            reservaParaCheckin.setCheckInTime(ahora);
+            reservaParaCheckin.getEspacio().setEstado(EstadoEspacio.OCUPADO);
+            espacioRepository.save(reservaParaCheckin.getEspacio());
+            reservaRepository.save(reservaParaCheckin);
+
+            return ScanResponse.builder()
+                    .accion("CHECK_IN")
+                    .mensaje("Bienvenido! Tu check-in fue registrado correctamente.")
+                    .estadoEspacio("OCUPADO")
+                    .codigoEspacio(reservaParaCheckin.getEspacio().getCodigo())
+                    .zonaNombre(reservaParaCheckin.getEspacio().getZona().getNombre())
+                    .timestamp(ahora)
+                    .build();
+        }
+
+        Reserva reservaVencida = reservasActivas.stream()
+                .filter(r -> r.getCheckInTime() == null)
+                .filter(r -> ahora.isAfter(r.getFechaInicio().plusMinutes(CHECKIN_VENTANA_DESPUES_MIN)))
+                .reduce((first, second) -> second)
+                .orElse(null);
+
+        if (reservaVencida != null) {
+            reservaVencida.setEstado(EstadoReserva.NO_SHOW);
+            liberarEspacio(reservaVencida.getEspacio());
+            reservaRepository.save(reservaVencida);
+            throw new ReglaNegocioException("La ventana de check-in expiro. La reserva fue marcada como NO_SHOW.");
+        }
+
+        Reserva reservaFutura = reservasActivas.stream()
+                .filter(r -> r.getCheckInTime() == null)
+                .filter(r -> ahora.isBefore(r.getFechaInicio().minusMinutes(CHECKIN_VENTANA_ANTES_MIN)))
+                .findFirst()
+                .orElse(null);
+
+        if (reservaFutura != null) {
+            LocalDateTime inicioVentana = reservaFutura.getFechaInicio().minusMinutes(CHECKIN_VENTANA_ANTES_MIN);
+            throw new ReglaNegocioException(
+                    "Aun es temprano para hacer check-in en este espacio. " +
+                            "Podras escanear desde " + inicioVentana.toLocalTime() + ".");
+        }
+
+        return crearOcupacionEspontanea(usuario, espacio, ahora);
+    }
 
     private Espacio seleccionarEspacio(ReservaRequest req, LocalDateTime inicio, LocalDateTime fin) {
         if (req.getEspacioId() != null) {
             Espacio e = espacioRepository.findById(req.getEspacioId())
                     .orElseThrow(() -> new RecursoNoEncontradoException("Espacio no encontrado: " + req.getEspacioId()));
-            // Solo rechazar estados administrativos permanentes
             if (e.getEstado() == EstadoEspacio.BLOQUEADO || e.getEstado() == EstadoEspacio.MANTENIMIENTO) {
-                throw new ReglaNegocioException("El espacio solicitado no estÃ¡ disponible.");
+                throw new ReglaNegocioException("El espacio solicitado no esta disponible.");
             }
-            // NOTA: No rechazamos por RESERVADO u OCUPADO aquÃ­.
-            // El solapamiento temporal se verifica en el paso 5 (existeSolapamiento).
             return e;
         }
-        // AsignaciÃ³n automÃ¡tica: primer disponible de la zona
+
         List<Espacio> disponibles = espacioRepository.findDisponibles(
                 req.getZonaId(), req.getTipoVehiculo(), inicio, fin);
         if (disponibles.isEmpty()) {
@@ -308,41 +322,28 @@ public class ReservaServiceImpl implements IReservaService {
         return disponibles.get(0);
     }
 
-    /**
-     * Libera el espacio fÃ­sicamente solo si fue marcado por una reserva
-     * (RESERVADO u OCUPADO). No sobreescribe estados administrativos
-     * como BLOQUEADO o MANTENIMIENTO.
-     */
     private void liberarEspacio(Espacio espacio) {
-        if (espacio.getEstado() == EstadoEspacio.RESERVADO
-                || espacio.getEstado() == EstadoEspacio.OCUPADO) {
+        if (espacio.getEstado() == EstadoEspacio.RESERVADO || espacio.getEstado() == EstadoEspacio.OCUPADO) {
             espacio.setEstado(EstadoEspacio.DISPONIBLE);
             espacioRepository.save(espacio);
         }
-        // BLOQUEADO y MANTENIMIENTO se ignoran intencionalmente:
-        // esos estados los gestiona el admin, no el flujo de reservas.
     }
 
-    /**
-     * Resuelve el timestamp a partir del cÃ³digo de franja (A, B, Câ€¦)
-     * leyendo config_horarios de la entidad.
-     */
     @SuppressWarnings("unchecked")
     private LocalDateTime resolverTimestamp(LocalDate fecha, String codigoFranja, boolean esInicio) {
         Entidad entidad = entidadRepository.findFirstBy()
-                .orElseThrow(() -> new RecursoNoEncontradoException("ConfiguraciÃ³n de entidad no encontrada."));
+                .orElseThrow(() -> new RecursoNoEncontradoException("Configuracion de entidad no encontrada."));
 
         try {
-            List<Map<String, String>> horarios = objectMapper.convertValue(
-                    entidad.getConfigHorarios(), List.class);
+            List<Map<String, String>> horarios = objectMapper.convertValue(entidad.getConfigHorarios(), List.class);
 
             Map<String, String> franja = horarios.stream()
                     .filter(h -> codigoFranja.equalsIgnoreCase(h.get("codigo")))
                     .findFirst()
-                    .orElseThrow(() -> new ReglaNegocioException("Franja horaria invÃ¡lida: " + codigoFranja));
+                    .orElseThrow(() -> new ReglaNegocioException("Franja horaria invalida: " + codigoFranja));
 
             String horaStr = esInicio ? franja.get("inicio") : franja.get("fin");
-            return LocalDateTime.of(fecha, java.time.LocalTime.parse(horaStr));
+            return LocalDateTime.of(fecha, LocalTime.parse(horaStr));
         } catch (ReglaNegocioException e) {
             throw e;
         } catch (Exception e) {
@@ -352,8 +353,10 @@ public class ReservaServiceImpl implements IReservaService {
 
     private long contarFranjas(String franjaInicio, String franjaFin) {
         char inicio = franjaInicio.toUpperCase().charAt(0);
-        char fin    = franjaFin.toUpperCase().charAt(0);
-        if (fin < inicio) throw new ReglaNegocioException("La franja fin no puede ser anterior a la franja inicio.");
+        char fin = franjaFin.toUpperCase().charAt(0);
+        if (fin < inicio) {
+            throw new ReglaNegocioException("La franja fin no puede ser anterior a la franja inicio.");
+        }
         return (fin - inicio) + 1;
     }
 
@@ -381,82 +384,85 @@ public class ReservaServiceImpl implements IReservaService {
                 .orElseThrow(() -> new RecursoNoEncontradoException("Reserva no encontrada: " + id));
     }
 
-    @Override
-    @Transactional
-    public ScanResponse escanear(String token) {
-        // 1. Validar firma â€” lanza TokenQrInvalidoException si es invÃ¡lido
-        QrPayload payload = qrTokenService.validarToken(token);
-
-        // 2. Cargar reserva y verificar consistencia bÃ¡sica
-        Reserva reserva = reservaRepository.findById(payload.r())
-                .orElseThrow(() -> new RecursoNoEncontradoException("Reserva no encontrada."));
-
-        if (!reserva.getUsuario().getId().equals(payload.u()) ||
-                !reserva.getEspacio().getId().equals(payload.e())) {
-            throw new TokenQrInvalidoException("El token no corresponde a esta reserva.");
+    private ScanResponse crearOcupacionEspontanea(Usuario usuario, Espacio espacio, LocalDateTime ahora) {
+        if (espacio.getEstado() == EstadoEspacio.BLOQUEADO || espacio.getEstado() == EstadoEspacio.MANTENIMIENTO) {
+            throw new ReglaNegocioException("Este espacio no puede ocuparse porque esta bloqueado o en mantenimiento.");
         }
 
-        if (reserva.getEstado() != EstadoReserva.ACTIVA) {
-            throw new ReglaNegocioException("La reserva no estÃ¡ activa (estado: " + reserva.getEstado() + ").");
+        FranjaActual franjaActual = resolverFranjaActual(ahora);
+
+        if (reservaRepository.existeSolapamientoActivoEspacio(espacio.getId(), franjaActual.inicio(), franjaActual.fin())) {
+            throw new ReglaNegocioException(
+                    "Este espacio ya se encuentra reservado u ocupado en el turno actual.");
         }
 
-        LocalDateTime ahora = LocalDateTime.now();
-
-        // â”€â”€ PRIMERA PASADA: Check-in â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        if (reserva.getCheckInTime() == null) {
-            LocalDateTime ventanaInicio = reserva.getFechaInicio().minusMinutes(CHECKIN_VENTANA_ANTES_MIN);
-            LocalDateTime ventanaFin    = reserva.getFechaInicio().plusMinutes(CHECKIN_VENTANA_DESPUES_MIN);
-
-            if (ahora.isBefore(ventanaInicio)) {
-                throw new ReglaNegocioException(
-                        "AÃºn es demasiado temprano. Puedes hacer check-in a partir de las "
-                                + ventanaInicio.toLocalTime() + ".");
-            }
-            if (ahora.isAfter(ventanaFin)) {
-                // La ventana pasÃ³ â†’ NO_SHOW (el scheduler tambiÃ©n lo harÃ­a, pero respondemos claro)
-                reserva.setEstado(EstadoReserva.NO_SHOW);
-                liberarEspacio(reserva.getEspacio());
-                reservaRepository.save(reserva);
-                throw new ReglaNegocioException("La ventana de check-in expirÃ³. La reserva fue marcada como NO_SHOW.");
-            }
-
-            // Todo OK â†’ check-in
-            reserva.setCheckInTime(ahora);
-            reserva.getEspacio().setEstado(EstadoEspacio.OCUPADO);
-            espacioRepository.save(reserva.getEspacio());
-            reservaRepository.save(reserva);
-
-            return ScanResponse.builder()
-                    .accion("CHECK_IN")
-                    .mensaje("Â¡Bienvenido! Tu espacio estÃ¡ activo.")
-                    .estadoEspacio("OCUPADO")
-                    .codigoEspacio(reserva.getEspacio().getCodigo())
-                    .zonaNombre(reserva.getEspacio().getZona().getNombre())
-                    .timestamp(ahora)
-                    .build();
+        if (reservaRepository.existeSolapamientoUsuario(usuario.getId(), franjaActual.inicio(), franjaActual.fin())) {
+            throw new ReglaNegocioException(
+                    "Ya tienes una reserva activa en este turno. Completa esa reserva antes de ocupar otro espacio.");
         }
 
-        // â”€â”€ SEGUNDA PASADA: Check-out â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        LocalDateTime limiteCheckout = reserva.getFechaFin().plusMinutes(CHECKOUT_VENTANA_EXTRA_MIN);
+        Reserva ocupacionEspontanea = Reserva.builder()
+                .usuario(usuario)
+                .espacio(espacio)
+                .fechaReserva(franjaActual.inicio().toLocalDate())
+                .fechaInicio(franjaActual.inicio())
+                .fechaFin(franjaActual.fin())
+                .tipoVehiculo(espacio.getTipoVehiculo() != null ? espacio.getTipoVehiculo() : TipoVehiculo.AUTO)
+                .estado(EstadoReserva.ACTIVA)
+                .checkInTime(ahora)
+                .build();
 
-        if (ahora.isAfter(limiteCheckout)) {
-            // Checkout tardÃ­o â€” aÃºn lo procesamos pero con penalizaciÃ³n
-            aplicarPenalizacion(reserva, TipoPenalizacion.CANCELACION_TARDIA);
-        }
+        reservaRepository.save(ocupacionEspontanea);
 
-        reserva.setCheckOutTime(ahora);
-        reserva.setEstado(EstadoReserva.COMPLETADA);
-        liberarEspacio(reserva.getEspacio());
-        reservaRepository.save(reserva);
+        espacio.setEstado(EstadoEspacio.OCUPADO);
+        espacioRepository.save(espacio);
 
         return ScanResponse.builder()
-                .accion("CHECK_OUT")
-                .mensaje("Â¡Hasta pronto! Tu espacio quedÃ³ liberado.")
-                .estadoEspacio("DISPONIBLE")
-                .codigoEspacio(reserva.getEspacio().getCodigo())
-                .zonaNombre(reserva.getEspacio().getZona().getNombre())
+                .accion("CHECK_IN")
+                .mensaje("Check-in registrado. Se creo una ocupacion espontanea para el turno actual.")
+                .estadoEspacio("OCUPADO")
+                .codigoEspacio(espacio.getCodigo())
+                .zonaNombre(espacio.getZona().getNombre())
                 .timestamp(ahora)
                 .build();
+    }
+
+    @SuppressWarnings("unchecked")
+    private FranjaActual resolverFranjaActual(LocalDateTime ahora) {
+        Entidad entidad = entidadRepository.findFirstBy()
+                .orElseThrow(() -> new RecursoNoEncontradoException("Configuracion de entidad no encontrada."));
+
+        try {
+            List<Map<String, String>> horarios = objectMapper.convertValue(entidad.getConfigHorarios(), List.class);
+            LocalTime horaActual = ahora.toLocalTime();
+
+            Map<String, String> franja = horarios.stream()
+                    .filter(h -> h.get("inicio") != null && h.get("fin") != null)
+                    .filter(h -> {
+                        LocalTime inicio = LocalTime.parse(h.get("inicio"));
+                        LocalTime fin = LocalTime.parse(h.get("fin"));
+                        return !horaActual.isBefore(inicio) && horaActual.isBefore(fin);
+                    })
+                    .findFirst()
+                    .orElseThrow(() -> new ReglaNegocioException(
+                            "No hay un turno horario activo en este momento para registrar ocupacion."));
+
+            LocalDateTime inicio = LocalDateTime.of(ahora.toLocalDate(), LocalTime.parse(franja.get("inicio")));
+            LocalDateTime fin = LocalDateTime.of(ahora.toLocalDate(), LocalTime.parse(franja.get("fin")));
+
+            return new FranjaActual(
+                    franja.getOrDefault("codigo", "SIN_CODIGO"),
+                    inicio,
+                    fin
+            );
+        } catch (ReglaNegocioException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ReglaNegocioException("No se pudo resolver el turno horario actual.");
+        }
+    }
+
+    private record FranjaActual(String codigo, LocalDateTime inicio, LocalDateTime fin) {
     }
 
     private void aplicarPenalizacion(Reserva reserva, TipoPenalizacion tipo) {
@@ -482,14 +488,8 @@ public class ReservaServiceImpl implements IReservaService {
         Espacio e = r.getEspacio();
         Zona    z = e.getZona();
 
-        String token = qrTokenService.generarToken(r);
-        String url   = qrTokenService.generarUrlQr(r);
-
         return ReservaResponse.builder()
                 .id(r.getId())
-                .codigoQr(r.getCodigoQr())          // UUID interno (para operador manual)
-                .qrToken(token)                      // token firmado para el QR
-                .qrUrl(url)                          // URL a codificar como QR image
                 .fechaReserva(r.getFechaReserva())
                 .fechaInicio(r.getFechaInicio())
                 .fechaFin(r.getFechaFin())
@@ -497,6 +497,7 @@ public class ReservaServiceImpl implements IReservaService {
                 .checkInTime(r.getCheckInTime())
                 .checkOutTime(r.getCheckOutTime())
                 .codigoEspacio(e.getCodigo())
+                .codigoQrFisico(e.getCodigoQrFisico())
                 .zonaNombre(z.getNombre())
                 .sedeNombre(z.getSede().getNombre())
                 .usuarioNombre(r.getUsuario().getNombre() + " " + r.getUsuario().getApellido())
@@ -505,3 +506,6 @@ public class ReservaServiceImpl implements IReservaService {
                 .build();
     }
 }
+
+
+

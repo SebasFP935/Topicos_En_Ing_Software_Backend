@@ -66,7 +66,6 @@ public class SecurityConfig {
                         ).permitAll()
 
                         // â”€â”€ Escaneo del QR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-                        .requestMatchers(HttpMethod.GET, "/api/reservas/escanear/**").permitAll()
 
                         // â”€â”€ Rutas solo ADMIN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                         .requestMatchers(HttpMethod.POST,   "/api/sedes/**").hasRole("ADMIN")
@@ -87,8 +86,6 @@ public class SecurityConfig {
                         // â”€â”€ Rutas ADMIN y OPERADOR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                         .requestMatchers("/api/bloqueos/**").hasAnyRole("ADMIN", "OPERADOR")
                         .requestMatchers("/api/reservas/hoy").hasAnyRole("ADMIN", "OPERADOR")
-                        .requestMatchers("/api/reservas/checkin/**").hasAnyRole("ADMIN", "OPERADOR")
-                        .requestMatchers("/api/reservas/checkout/**").hasAnyRole("ADMIN", "OPERADOR")
 
                         // â”€â”€ El resto requiere solo estar autenticado â”€
                         .anyRequest().authenticated()

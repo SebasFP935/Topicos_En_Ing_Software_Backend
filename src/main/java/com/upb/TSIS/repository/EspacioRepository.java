@@ -20,6 +20,10 @@ public interface EspacioRepository extends JpaRepository<Espacio, Integer> {
 
     Optional<Espacio> findByCodigoIgnoreCase(String codigo);
 
+    Optional<Espacio> findByCodigoQrFisicoIgnoreCase(String codigoQrFisico);
+
+    List<Espacio> findByCodigoQrFisicoIsNull();
+
     List<Espacio> findByZona_IdAndEstado(Integer zonaId, EstadoEspacio estado);
 
     List<Espacio> findByEstado(EstadoEspacio estado);
@@ -35,18 +39,18 @@ public interface EspacioRepository extends JpaRepository<Espacio, Integer> {
      * El control de solapamiento temporal se delega completamente a la subconsulta
      * de reservas activas en ese rango.
      */
-    @Query("""
-            SELECT e FROM Espacio e
-            WHERE e.zona.id = :zonaId
-              AND e.tipoVehiculo = :tipoVehiculo
-              AND e.estado NOT IN ('BLOQUEADO', 'MANTENIMIENTO')
-              AND e.id NOT IN (
-                  SELECT r.espacio.id FROM Reserva r
-                  WHERE r.estado NOT IN ('CANCELADA', 'NO_SHOW')
-                    AND r.fechaInicio < :fin
-                    AND r.fechaFin    > :inicio
-              )
-            """)
+    @Query(
+            "SELECT e FROM Espacio e " +
+            "WHERE e.zona.id = :zonaId " +
+            "AND e.tipoVehiculo = :tipoVehiculo " +
+            "AND e.estado NOT IN ('BLOQUEADO', 'MANTENIMIENTO') " +
+            "AND e.id NOT IN (" +
+            "    SELECT r.espacio.id FROM Reserva r " +
+            "    WHERE r.estado NOT IN ('CANCELADA', 'NO_SHOW') " +
+            "      AND r.fechaInicio < :fin " +
+            "      AND r.fechaFin > :inicio" +
+            ")"
+    )
     List<Espacio> findDisponibles(Integer zonaId, TipoVehiculo tipoVehiculo,
                                   LocalDateTime inicio, LocalDateTime fin);
 }

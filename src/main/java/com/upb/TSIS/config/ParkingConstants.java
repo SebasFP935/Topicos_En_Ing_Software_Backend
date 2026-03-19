@@ -12,10 +12,10 @@ public final class ParkingConstants {
     // ── Ventanas de escaneo QR ────────────────────────────────────────────────
 
     /** Minutos ANTES del inicio de la reserva en que se acepta el check-in */
-    public static final int CHECKIN_VENTANA_ANTES_MIN = 5;
+    public static final int CHECKIN_VENTANA_ANTES_MIN = 50;
 
     /** Minutos DESPUÉS del inicio de la reserva en que aún se acepta el check-in */
-    public static final int CHECKIN_VENTANA_DESPUES_MIN = 5;
+    public static final int CHECKIN_VENTANA_DESPUES_MIN = 50;
 
     /** Minutos extras después del FIN de la reserva en que se acepta checkout sin penalización */
     public static final int CHECKOUT_VENTANA_EXTRA_MIN = 10;

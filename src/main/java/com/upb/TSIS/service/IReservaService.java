@@ -9,13 +9,10 @@ import java.util.List;
 public interface IReservaService {
     ReservaResponse crear(Integer usuarioId, ReservaRequest request);
     ReservaResponse obtenerPorId(Integer id);
-    ReservaResponse obtenerPorQr(String codigoQr);
     List<ReservaResponse> listarPorUsuario(Integer usuarioId);
     List<ReservaResponse> listarActualesDeHoy();
     ReservaResponse cancelar(Integer id, Integer usuarioId);
-    ReservaResponse checkIn(String codigoQr, Integer operadorId);
-    ReservaResponse checkOut(String codigoQr, Integer operadorId);
     void procesarReservasVencidas();      // scheduler: marca NO_SHOW y libera espacios
     void marcarEspaciosReservados();    // scheduler: activa RESERVADO cuando llega la franja
-    ScanResponse escanear(String token);
+    ScanResponse escanear(String codigoQrFisicoEspacio, Integer usuarioId);
 }

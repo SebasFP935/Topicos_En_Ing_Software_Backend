@@ -16,20 +16,20 @@ public interface BloqueoProgramadoRepository extends JpaRepository<BloqueoProgra
     List<BloqueoProgramado> findByZona_Id(Integer zonaId);
 
     // Bloqueos vigentes en este momento para un espacio
-    @Query("""
-            SELECT b FROM BloqueoProgramado b
-            WHERE b.espacio.id = :espacioId
-              AND b.fechaInicioBloqueo <= :ahora
-              AND (b.fechaFinBloqueo IS NULL OR b.fechaFinBloqueo >= :ahora)
-            """)
+    @Query(
+            "SELECT b FROM BloqueoProgramado b " +
+            "WHERE b.espacio.id = :espacioId " +
+            "AND b.fechaInicioBloqueo <= :ahora " +
+            "AND (b.fechaFinBloqueo IS NULL OR b.fechaFinBloqueo >= :ahora)"
+    )
     List<BloqueoProgramado> findBloqueoActivoPorEspacio(Integer espacioId, LocalDateTime ahora);
 
     // Bloqueos vigentes ahora mismo para una zona
-    @Query("""
-            SELECT b FROM BloqueoProgramado b
-            WHERE b.zona.id = :zonaId
-              AND b.fechaInicioBloqueo <= :ahora
-              AND (b.fechaFinBloqueo IS NULL OR b.fechaFinBloqueo >= :ahora)
-            """)
+    @Query(
+            "SELECT b FROM BloqueoProgramado b " +
+            "WHERE b.zona.id = :zonaId " +
+            "AND b.fechaInicioBloqueo <= :ahora " +
+            "AND (b.fechaFinBloqueo IS NULL OR b.fechaFinBloqueo >= :ahora)"
+    )
     List<BloqueoProgramado> findBloqueoActivoPorZona(Integer zonaId, LocalDateTime ahora);
 }

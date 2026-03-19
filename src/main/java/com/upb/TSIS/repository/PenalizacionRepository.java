@@ -16,10 +16,10 @@ public interface PenalizacionRepository extends JpaRepository<Penalizacion, Inte
     List<Penalizacion> findByUsuario_IdAndEstado(Integer usuarioId, EstadoPenalizacion estado);
 
     // Suma total de puntos de penalización activos de un usuario
-    @Query("""
-            SELECT COALESCE(SUM(p.puntosDescontados), 0) FROM Penalizacion p
-            WHERE p.usuario.id = :usuarioId
-              AND p.estado = 'ACTIVA'
-            """)
+    @Query(
+            "SELECT COALESCE(SUM(p.puntosDescontados), 0) FROM Penalizacion p " +
+            "WHERE p.usuario.id = :usuarioId " +
+            "AND p.estado = 'ACTIVA'"
+    )
     Integer sumPuntosActivosPorUsuario(Integer usuarioId);
 }
