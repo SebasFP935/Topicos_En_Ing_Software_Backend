@@ -73,13 +73,13 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT,    "/api/sedes/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/sedes/**").hasRole("ADMIN")
 
-                        .requestMatchers(HttpMethod.POST,   "/api/zonas/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST,   "/api/zonas/**").hasAnyRole("ADMIN", "OPERADOR")
                         .requestMatchers(HttpMethod.PUT,    "/api/zonas/*/mapa").hasAnyRole("ADMIN", "OPERADOR")
-                        .requestMatchers(HttpMethod.PUT,    "/api/zonas/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.DELETE, "/api/zonas/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT,    "/api/zonas/**").hasAnyRole("ADMIN", "OPERADOR")
+                        .requestMatchers(HttpMethod.DELETE, "/api/zonas/**").hasAnyRole("ADMIN", "OPERADOR")
 
-                        .requestMatchers(HttpMethod.POST,   "/api/espacios/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.DELETE, "/api/espacios/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST,   "/api/espacios/**").hasAnyRole("ADMIN", "OPERADOR")
+                        .requestMatchers(HttpMethod.DELETE, "/api/espacios/**").hasAnyRole("ADMIN", "OPERADOR")
 
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/usuarios/**").hasRole("ADMIN")
