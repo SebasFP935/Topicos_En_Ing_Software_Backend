@@ -77,7 +77,7 @@ public class ReservaServiceImpl implements IReservaService {
         if (reservaRepository.existeReservaActivaEnFecha(usuarioId, request.getFechaReserva())) {
             throw new ReglaNegocioException(
                     "Ya tienes una reserva activa para el " + request.getFechaReserva() +
-                            ". Solo se permite 1 reserva por dÃ­a.");
+                            ". Solo se permite 1 reserva por día.");
         }
 
         // 3d. Validar que el usuario no tenga otra reserva en el mismo horario (otro espacio, misma franja)

@@ -27,7 +27,7 @@ public class CustomAuthEntryPoint implements AuthenticationEntryPoint {
         Map<String, Object> body = Map.of(
                 "status",  401,
                 "error",   "No autorizado",
-                "mensaje", "Debes iniciar sesiÃ³n para acceder a este recurso.",
+                "mensaje", "Debes iniciar sesión para acceder a este recurso.",
                 "path",    request.getServletPath()
         );
 
