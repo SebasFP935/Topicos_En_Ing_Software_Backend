@@ -10,7 +10,9 @@ import com.upb.TSIS.exception.RecursoNoEncontradoException;
 import com.upb.TSIS.exception.ReglaNegocioException;
 import com.upb.TSIS.repository.EspacioRepository;
 import com.upb.TSIS.repository.ZonaRepository;
+import com.upb.TSIS.service.IQrImageService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +24,12 @@ public class MapaServiceImpl {
 
     private final ZonaRepository    zonaRepository;
     private final EspacioRepository espacioRepository;
+
+    // Agregar en los campos del service:
+    private final IQrImageService qrImageService;
+
+    @Value("${app.frontend.url:http://localhost:5173}")
+    private String frontendUrl;
 
     // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // GET /api/zonas/{id}/mapa
@@ -163,6 +171,14 @@ public class MapaServiceImpl {
                         .build();
 
                 Espacio guardado = espacioRepository.save(nuevo);
+
+                // Generar y guardar QR físico
+                if (guardado.getCodigoQrFisico() != null && guardado.getQrImagenBase64() == null) {
+                    String url = frontendUrl + "/escanear/" + guardado.getCodigoQrFisico();
+                    guardado.setQrImagenBase64(qrImageService.generarBase64(url));
+                    guardado = espacioRepository.save(guardado);
+                }
+
                 idsEnRequest.add(guardado.getId());
             }
         }

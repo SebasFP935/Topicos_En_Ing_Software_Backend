@@ -9,6 +9,7 @@ import lombok.Data;
 public class EspacioResponse {
     private Integer id;
     private String codigo;
+    private String codigoQrFisico;
     private EstadoEspacio estado;
     private TipoVehiculo tipoVehiculo;
     private Object coordenadas;

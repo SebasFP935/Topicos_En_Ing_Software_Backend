@@ -31,12 +31,15 @@ public class Espacio {
     @Column(nullable = false, unique = true, length = 20)
     private String codigo;
 
-    /**
-     * Código QR físico único de este espacio.
-     * Este valor se imprime/pega en el parqueo y NO debe exponerse en el flujo normal del usuario.
-     */
     @Column(name = "codigo_qr_fisico", unique = true, length = 36)
     private String codigoQrFisico;
+
+    /**
+     * Imagen PNG del QR físico codificada en Base64.
+     * El QR apunta a: {frontendUrl}/escanear/{codigoQrFisico}
+     */
+    @Column(name = "qr_imagen_base64", columnDefinition = "TEXT")
+    private String qrImagenBase64;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, columnDefinition = "VARCHAR(20) CHECK (estado IN ('DISPONIBLE','RESERVADO','OCUPADO','BLOQUEADO','MANTENIMIENTO'))")
@@ -48,10 +51,6 @@ public class Espacio {
     @Builder.Default
     private TipoVehiculo tipoVehiculo = TipoVehiculo.AUTO;
 
-    /**
-     * Posición del espacio en el mapa del parqueo.
-     * Formato: {"x": 120.5, "y": 340.2}
-     */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private Object coordenadas;

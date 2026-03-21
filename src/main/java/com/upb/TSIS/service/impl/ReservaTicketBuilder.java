@@ -9,6 +9,7 @@ import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
 import com.upb.TSIS.entity.Reserva;
+import com.upb.TSIS.service.IQrImageService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -25,8 +26,14 @@ import java.util.Map;
 @Component
 public class ReservaTicketBuilder {
 
+    private final IQrImageService qrImageService;
+
     private static final DateTimeFormatter FECHA_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final DateTimeFormatter HORA_FMT  = DateTimeFormatter.ofPattern("HH:mm");
+
+    public ReservaTicketBuilder(IQrImageService qrImageService) {
+        this.qrImageService = qrImageService;
+    }
 
     /**
      * Genera el HTML completo del ticket como String.
@@ -34,7 +41,7 @@ public class ReservaTicketBuilder {
      * @param qrUrl   URL firmada que irá codificada en el QR
      */
     public String buildHtml(Reserva reserva, String qrUrl) {
-        String qrBase64 = generarQrBase64(qrUrl);
+        String qrBase64 = qrImageService.generarBase64(qrUrl);
         String nombre   = reserva.getUsuario().getNombre() + " " + reserva.getUsuario().getApellido();
         String espacio  = reserva.getEspacio().getCodigo();
         String zona     = reserva.getEspacio().getZona().getNombre();
@@ -332,29 +339,29 @@ public class ReservaTicketBuilder {
         );
     }
 
-    // ── QR Generator ─────────────────────────────────────────────
+    // ── QR Generator (Obsoleto)─────────────────────────────────────────────
 
-    private String generarQrBase64(String contenido) {
-        try {
-            QRCodeWriter writer = new QRCodeWriter();
-            Map<EncodeHintType, Object> hints = Map.of(
-                    EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.M,
-                    EncodeHintType.MARGIN, 1
-            );
-
-            BitMatrix matrix = writer.encode(contenido, BarcodeFormat.QR_CODE, 320, 320, hints);
-
-            // QR en blanco/negro puro: fondo blanco (#FFFFFF), módulos negros (#000000)
-            MatrixToImageConfig config = new MatrixToImageConfig(0xFF000000, 0xFFFFFFFF);
-
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            MatrixToImageWriter.writeToStream(matrix, "PNG", baos, config);
-
-            return Base64.getEncoder().encodeToString(baos.toByteArray());
-
-        } catch (Exception ex) {
-            log.error("Error generando QR para URL: {}", contenido, ex);
-            throw new IllegalStateException("No se pudo generar el código QR", ex);
-        }
-    }
+//    private String generarQrBase64(String contenido) {
+//        try {
+//            QRCodeWriter writer = new QRCodeWriter();
+//            Map<EncodeHintType, Object> hints = Map.of(
+//                    EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.M,
+//                    EncodeHintType.MARGIN, 1
+//            );
+//
+//            BitMatrix matrix = writer.encode(contenido, BarcodeFormat.QR_CODE, 320, 320, hints);
+//
+//            // QR en blanco/negro puro: fondo blanco (#FFFFFF), módulos negros (#000000)
+//            MatrixToImageConfig config = new MatrixToImageConfig(0xFF000000, 0xFFFFFFFF);
+//
+//            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+//            MatrixToImageWriter.writeToStream(matrix, "PNG", baos, config);
+//
+//            return Base64.getEncoder().encodeToString(baos.toByteArray());
+//
+//        } catch (Exception ex) {
+//            log.error("Error generando QR para URL: {}", contenido, ex);
+//            throw new IllegalStateException("No se pudo generar el código QR", ex);
+//        }
+//    }
 }

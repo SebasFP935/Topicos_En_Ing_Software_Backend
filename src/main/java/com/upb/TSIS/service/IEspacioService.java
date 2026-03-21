@@ -16,4 +16,6 @@ public interface IEspacioService {
                                             LocalDateTime inicio, LocalDateTime fin);
     EspacioResponse actualizarEstado(Integer id, EstadoEspacio nuevoEstado);
     void eliminar(Integer id);
+    /** Devuelve la imagen PNG del QR físico como bytes crudos */
+    byte[] obtenerQrPng(Integer id);
 }

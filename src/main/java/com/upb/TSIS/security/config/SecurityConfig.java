@@ -109,6 +109,7 @@ public class SecurityConfig {
         config.setAllowedOriginPatterns(List.of(
                 "http://localhost:3000",
                 "http://localhost:5173",
+                "http://192.168.0.7:5173",   // ← agregar esta línea
                 "https://unpacified-edyth-communicatory.ngrok-free.dev",
                 "https://sebasfp935.github.io",
                 "https://*.vercel.app"

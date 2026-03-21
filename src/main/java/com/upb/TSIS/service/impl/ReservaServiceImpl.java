@@ -496,6 +496,7 @@ public class ReservaServiceImpl implements IReservaService {
                 .estado(r.getEstado())
                 .checkInTime(r.getCheckInTime())
                 .checkOutTime(r.getCheckOutTime())
+                .espacioId(e.getId())
                 .codigoEspacio(e.getCodigo())
                 .codigoQrFisico(e.getCodigoQrFisico())
                 .zonaNombre(z.getNombre())

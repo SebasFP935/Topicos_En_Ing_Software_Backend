@@ -19,6 +19,7 @@ public class ReservaResponse {
     private LocalDateTime checkOutTime;
 
     // Info resumida de lo que referencia
+    private Integer espacioId;
     private String codigoEspacio;
     private String codigoQrFisico;
     private String zonaNombre;
